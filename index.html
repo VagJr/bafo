@@ -7,204 +7,288 @@
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Titan+One&family=Nunito:wght@400;700&display=swap');
     
-    /* --- AMBIENTE MÁGICO --- */
-    :root { --glass: rgba(20,20,30,0.85); --gold: #f1c40f; }
+    :root { 
+        --glass: rgba(15, 15, 25, 0.75); 
+        --border: rgba(255, 255, 255, 0.1);
+        --gold: #f1c40f; 
+        --neon-blue: #00cec9;
+        --neon-purple: #a29bfe;
+    }
     
     body { 
         margin:0; overflow:hidden; 
-        /* Fundo estilo "Floresta Encantada Noturna" */
-        background: radial-gradient(circle at center, #4834d4 0%, #0f0c29 100%);
+        background: radial-gradient(circle at center, #2b0055 0%, #050510 100%);
         font-family:'Nunito',sans-serif; color:white; 
         touch-action:none; user-select:none; 
     }
-
-    /* Container dos Esporos de Luz */
-    #magic-layer { 
-        position:absolute; top:0; left:0; width:100%; height:100%; 
-        pointer-events:none; z-index:1; overflow:hidden; 
+    
+    /* CANVAS MÁGICO (AGORA POR CIMA DE TUDO) */
+    #bg-canvas {
+        position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+        z-index: 9999; /* Fica na frente de todas as telas */
+        pointer-events: none; /* IMPORTANTE: Permite clicar nos botões através das partículas */
     }
 
-    /* A partícula individual (gerada pelo JS) */
-    .spore {
-        position: absolute;
-        width: 4px; height: 4px;
-        background: #fff;
-        border-radius: 50%;
-        /* Efeito de brilho intenso (Glow) */
-        box-shadow: 
-            0 0 10px #fff, 
-            0 0 20px #a29bfe, 
-            0 0 40px #6c5ce7;
-        opacity: 0;
-        animation: floatUp linear infinite;
-    }
-
-    @keyframes floatUp {
-        0% { transform: translateY(110vh) scale(0.5); opacity: 0; }
-        20% { opacity: 0.8; }
-        50% { opacity: 1; }
-        80% { opacity: 0.8; }
-        100% { transform: translateY(-10vh) scale(1.2); opacity: 0; }
+    /* CANVAS DO JOGO (BAFO) */
+    #gameCanvas { 
+        display:block; position: relative; z-index: 5; 
     }
 
     /* --- UI GERAL --- */
     #ui-layer { position:absolute; top:0; left:0; width:100%; height:100%; pointer-events:none; z-index:10; }
     .hud { padding:20px; display:flex; justify-content:space-between; pointer-events:auto; }
-    .badge { background:rgba(0,0,0,0.6); border:2px solid #555; padding:10px 20px; border-radius:30px; font-family:'Titan One'; text-shadow:0 2px 0 black; backdrop-filter:blur(5px); }
+    .badge { 
+        background:rgba(0,0,0,0.6); border:1px solid #555; 
+        padding:10px 20px; border-radius:30px; 
+        font-family:'Titan One'; text-shadow:0 2px 0 black; 
+        backdrop-filter:blur(5px); box-shadow: 0 0 15px rgba(0,0,0,0.5);
+    }
 
-    .screen { position:absolute; top:0; left:0; width:100%; height:100%; background:rgba(10,10,15,0.7); z-index:20; display:none; align-items:center; justify-content:center; pointer-events:auto; backdrop-filter: blur(8px); }
-    .screen.active { display:flex; }
+    .screen { 
+        position:absolute; top:0; left:0; width:100%; height:100%; 
+        background:rgba(5, 5, 10, 0.6); 
+        z-index:20; display:none; align-items:center; justify-content:center; 
+        pointer-events:auto; backdrop-filter: blur(4px); 
+    }
+    .screen.active { display:flex; animation: fadeIn 0.3s ease-out; }
 
-    /* Painel de Vidro */
+    @keyframes fadeIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
+
     .panel { 
-        background:var(--glass); padding:20px; border-radius:20px; 
-        border:1px solid rgba(255,255,255,0.15); 
+        background:var(--glass); padding:25px; border-radius:24px; 
+        border:1px solid var(--border); 
         text-align:center; max-width:500px; width:90%; max-height:90vh; 
         display:flex; flex-direction:column; 
-        box-shadow: 0 0 30px rgba(162, 155, 254, 0.3); 
-        position: relative;
-        overflow: hidden;
+        box-shadow: 0 0 50px rgba(162, 155, 254, 0.15); 
+        position: relative; overflow: hidden;
     }
     
-    /* Brilho sutil no topo do painel */
-    .panel::before {
-        content:''; position:absolute; top:0; left:0; width:100%; height:4px;
-        background: linear-gradient(90deg, transparent, #a29bfe, transparent);
+    .panel::after {
+        content: ''; position: absolute; top: -50%; left: -50%; width: 200%; height: 200%;
+        background: radial-gradient(circle, rgba(255,255,255,0.05) 0%, transparent 60%);
+        pointer-events: none;
     }
 
-    .scroll-area { overflow-y:auto; flex:1; margin:10px 0; }
+    .scroll-area { overflow-y:auto; flex:1; margin:15px 0; padding: 5px; z-index: 2; }
 
-    /* Botões Mágicos */
+    /* BOTÕES */
     .btn { 
-        background:linear-gradient(180deg, #a29bfe, #6c5ce7); border:none; padding:15px; width:100%; 
-        border-radius:12px; color:white; font-family:'Titan One'; font-size:1rem; margin-top:8px; 
-        cursor:pointer; box-shadow:0 4px 0 #4834d4; transition:0.2s; text-shadow: 0 1px 2px rgba(0,0,0,0.3);
+        background:linear-gradient(135deg, #a29bfe, #6c5ce7); border:none; padding:15px; width:100%; 
+        border-radius:16px; color:white; font-family:'Titan One'; font-size:1.1rem; margin-top:10px; 
+        cursor:pointer; text-shadow: 0 2px 4px rgba(0,0,0,0.3); 
+        transition: transform 0.1s, box-shadow 0.2s;
+        box-shadow: 0 5px 0 #4834d4, 0 10px 20px rgba(0,0,0,0.3);
+        position: relative; overflow: hidden;
     }
-    .btn:active { transform:translateY(4px); box-shadow:none; }
-    .btn-green { background:linear-gradient(180deg, #2ecc71, #27ae60); box-shadow:0 4px 0 #16a085; }
-    .btn-orange { background:linear-gradient(180deg, #f39c12, #d35400); box-shadow:0 4px 0 #c0392b; }
+    .btn::before {
+        content:''; position: absolute; top:0; left:0; width:100%; height:100%;
+        background: linear-gradient(rgba(255,255,255,0.2), transparent);
+    }
+    .btn:active { transform:translateY(5px); box-shadow: 0 0 0 #4834d4; }
+    
+    .btn-green { background:linear-gradient(135deg, #2ecc71, #27ae60); box-shadow: 0 5px 0 #16a085, 0 10px 20px rgba(0,0,0,0.3); }
+    .btn-green:active { box-shadow: 0 0 0 #16a085; }
+    
+    .btn-orange { background:linear-gradient(135deg, #f1c40f, #d35400); box-shadow: 0 5px 0 #c0392b, 0 10px 20px rgba(0,0,0,0.3); }
+    .btn-orange:active { box-shadow: 0 0 0 #c0392b; }
+    
+    .btn-blue { background:linear-gradient(135deg, #00cec9, #0984e3); box-shadow: 0 5px 0 #2980b9, 0 10px 20px rgba(0,0,0,0.3); }
+    .btn-blue:active { box-shadow: 0 0 0 #2980b9; }
 
-    input { width:90%; padding:12px; margin:8px 0; border-radius:8px; border:none; background:#333; color:white; text-align:center; }
+    input { 
+        width:90%; padding:15px; margin:10px 0; border-radius:12px; border:2px solid #444; 
+        background:rgba(0,0,0,0.5); color:white; text-align:center; font-size: 1rem; outline: none;
+        transition: 0.3s;
+    }
+    input:focus { border-color: var(--neon-purple); box-shadow: 0 0 15px rgba(162, 155, 254, 0.3); }
 
-    /* Toast Notification */
+    /* TOAST */
     #toast-area { position:absolute; top:100px; width:100%; display:flex; flex-direction:column; align-items:center; pointer-events:none; z-index:100; }
-    .toast { background:rgba(0,0,0,0.9); padding:10px 20px; border-radius:20px; margin-bottom:10px; border-left:4px solid var(--gold); animation:pop 0.3s; box-shadow: 0 0 15px var(--gold); }
+    .toast { 
+        background:rgba(0,0,0,0.9); padding:12px 25px; border-radius:30px; margin-bottom:10px; 
+        border: 1px solid var(--gold); color: var(--gold); font-weight: bold;
+        animation:pop 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); 
+        box-shadow: 0 0 20px rgba(241, 196, 15, 0.3);
+    }
     @keyframes pop { from{transform:scale(0);} to{transform:scale(1);} }
 
-    .grid { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; padding:5px; }
-    .slot { aspect-ratio:3/4; background:#333; border-radius:6px; border:2px solid transparent; cursor:pointer; position:relative; overflow:hidden; }
+    /* GRID VISUAL DE CARTAS */
+    .grid { 
+        display:grid; 
+        grid-template-columns: repeat(auto-fill, minmax(90px, 1fr)); 
+        gap:12px; padding: 5px;
+    }
     
-    /* Efeito ao selecionar carta na aposta */
-    .slot[style*="border-color"] { box-shadow: 0 0 15px #00cec9; transform: scale(0.95); transition: 0.2s; }
+    .grid-card {
+        aspect-ratio: 2.5/3.5;
+        background-color: #1a1a1a;
+        background-size: cover; background-position: center;
+        border-radius: 10px;
+        border: 2px solid #555;
+        position: relative; cursor: pointer;
+        transition: transform 0.2s, box-shadow 0.2s;
+        box-shadow: 0 4px 8px rgba(0,0,0,0.6);
+        overflow: hidden;
+    }
+    .grid-card:hover { transform: translateY(-5px) scale(1.05); z-index:2; box-shadow: 0 0 15px rgba(255,255,255,0.3); }
+    
+    .card-overlay {
+        position: absolute; bottom: 0; left: 0; width: 100%;
+        background: linear-gradient(transparent, rgba(0,0,0,0.9));
+        color: white; padding: 6px 4px; box-sizing: border-box;
+        font-size: 0.75rem; text-shadow: 0 1px 2px black;
+    }
+
+    /* LIST ITEMS */
+    .market-card, .collection-card { 
+        display: flex; align-items: center;
+        background: rgba(255,255,255,0.05); border-radius:12px; margin-bottom:8px; padding:8px; 
+        border:1px solid rgba(255,255,255,0.1); transition: 0.2s;
+    }
+    .market-card:hover { background: rgba(255,255,255,0.1); transform: translateX(5px); }
+    
+    .m-img, .collection-img { 
+        width: 50px; height: 70px; background-color: #000;
+        background-size: cover; background-position: center; 
+        border-radius: 6px; margin-right: 12px; flex-shrink: 0;
+        box-shadow: 0 2px 5px black;
+    }
+    .m-info, .collection-top { flex: 1; text-align: left; font-size: 0.9rem; }
 
     /* BOOSTER ANIMATION */
-    #booster-display { display:flex; justify-content:center; gap:10px; perspective: 1000px; min-height: 160px; align-items: center; }
+    #booster-display { display:flex; justify-content:center; gap:15px; height:200px; align-items:center; perspective:1000px; }
     .booster-card { 
-        width: 100px; height: 140px; 
-        background-size: cover; background-position: center; 
-        border-radius: 8px; border: 2px solid gold; 
-        box-shadow: 0 0 20px rgba(255, 215, 0, 0.8);
+        width:120px; height:168px; position: relative; 
+        transform-style: preserve-3d; transition: transform 0.8s cubic-bezier(0.175, 0.885, 0.32, 1.275);
         opacity: 0; transform: translateY(100px) rotateY(180deg);
     }
-    .booster-card.reveal { animation: cardReveal 1.2s forwards cubic-bezier(0.175, 0.885, 0.32, 1.275); }
-    
-    @keyframes cardReveal {
-        0% { opacity:0; transform: translateY(200px) rotateY(180deg) rotateZ(10deg); }
-        60% { opacity:1; transform: translateY(-30px) rotateY(0deg) rotateZ(-5deg); }
-        100% { transform: translateY(0) rotateY(0deg) rotateZ(0); }
-    }
+    .booster-card.reveal { opacity: 1; transform: translateY(0) rotateY(0deg); }
+    .booster-card .front, .booster-card .back { position: absolute; width: 100%; height: 100%; backface-visibility: hidden; border-radius: 10px; }
+    .booster-card .front { background-size: cover; background-position: center; border: 2px solid gold; box-shadow: 0 0 25px rgba(255,215,0,0.5); transform: rotateY(0deg); }
+    .booster-card .back { background: linear-gradient(135deg, #111, #333); border: 2px solid #555; transform: rotateY(180deg); display:flex; align-items:center; justify-content:center; font-size:2rem;}
+    .booster-card .back::after { content:'?'; color:#555; }
 
-    /* Collection & Market */
-    .collection-grid { display:grid; grid-template-columns:repeat(3, 1fr); gap:8px; padding:6px; }
-    .collection-card { background:#222; border-radius:8px; overflow:hidden; position:relative; border:1px solid #444; transition: transform 0.1s; }
-    .collection-card:active { transform: scale(0.95); }
-    .collection-img { width:100%; aspect-ratio:3/4; background-size:cover; background-position:top; }
-    .collection-top { font-size:10px; padding:4px; text-overflow:ellipsis; white-space:nowrap; overflow:hidden; background:rgba(0,0,0,0.5); position:absolute; top:0; width:100%; }
-    .sell-btn { width:100%; background:#c0392b; color:white; border:none; font-size:10px; padding:6px; cursor:pointer; text-transform:uppercase; font-weight:bold; }
-    
-    .market-card { display:flex; align-items:center; background:#2c3e50; padding:10px; margin-bottom:8px; border-radius:8px; cursor:pointer; border:1px solid #34495e; transition:0.2s; }
-    .market-card:hover { border-color:var(--gold); transform:translateX(5px); }
-    .m-img { width:40px; height:56px; background-size:cover; border-radius:4px; margin-right:10px; flex-shrink:0; box-shadow: 0 2px 5px black; }
-    .m-info { text-align:left; flex:1; }
-    
-    canvas { display:block; position: relative; z-index: 5; }
+    /* TRADE UI */
+    .trade-table { display:flex; justify-content:space-around; align-items:center; margin: 20px 0; background:rgba(0,0,0,0.2); padding:10px; border-radius:15px;}
+    .trade-slot { 
+        width: 100px; height: 140px; background: rgba(0,0,0,0.3); 
+        border: 2px dashed #555; border-radius: 8px; 
+        display:flex; flex-direction:column; align-items:center; justify-content:center; 
+        color:#aaa; font-size:11px; background-size:cover; background-position:center; 
+        position:relative; overflow:hidden; transition: 0.3s;
+    }
+    .trade-slot.filled { border-style: solid; box-shadow: 0 0 15px rgba(255,255,255,0.2); }
+
   </style>
 </head>
 <body>
 
-<div id="magic-layer"></div>
+<canvas id="bg-canvas"></canvas>
 
 <canvas id="gameCanvas"></canvas>
+
 <div id="toast-area"></div>
 
 <div id="ui-layer">
   <div class="hud" id="game-hud" style="display:none;">
     <div id="turn-badge" class="badge">Aguarde...</div>
-    <button class="btn" style="width:auto; padding:5px 15px; margin:0; font-size:0.8rem;" onclick="window.openMenu()">Menu</button>
+    <button class="btn" style="width:auto; padding:8px 20px; margin:0; font-size:0.8rem;" onclick="window.openMenu()">Menu</button>
   </div>
 </div>
 
 <div id="screen-login" class="screen active">
   <div class="panel">
-    <div style="font-size:3rem; margin-bottom:10px;">✨</div>
-    <h1 style="font-family:'Titan One'; color:#a29bfe; font-size: 2rem; margin:0; text-shadow:0 0 10px #6c5ce7;">BAFO<br>MULTIVERSE</h1>
-    <p style="font-size:12px; color:#aaa; letter-spacing:1px; margin-bottom:20px;">POKÉMON • MAGIC • LORCANA</p>
-    <input id="login-user" placeholder="Seu Nome de Jogador" />
+    <div style="font-size:3rem; margin-bottom:10px; animation: float 3s infinite ease-in-out;">✨</div>
+    <h1 style="font-family:'Titan One'; color:var(--neon-purple); font-size: 2.2rem; margin:0; text-shadow:0 0 15px var(--neon-purple);">BAFO<br>MULTIVERSE</h1>
+    <p style="color:#aaa; font-size:0.9rem; margin-bottom:20px;">POKÉMON • MAGIC • LORCANA</p>
+    <input id="login-user" placeholder="Nome de Mestre" />
     <button class="btn" onclick="window.doLogin()">ENTRAR NO MUNDO</button>
   </div>
 </div>
 
 <div id="screen-menu" class="screen">
   <div class="panel">
-    <h2 style="color:#a29bfe; text-shadow:0 0 10px #6c5ce7;">BASE DE COMANDO</h2>
-    <div style="display:flex; justify-content:space-around; background:rgba(0,0,0,0.4); padding:15px; border-radius:15px; margin-bottom:15px; border:1px solid rgba(255,255,255,0.1);">
+    <h2 style="color:var(--neon-purple);">BASE DE COMANDO</h2>
+    <div style="display:flex; justify-content:space-around; background:rgba(0,0,0,0.3); padding:15px; border-radius:15px; margin-bottom:15px; border:1px solid rgba(255,255,255,0.1);">
       <div style="text-align:center;">
           <div style="font-size:1.5rem;">🪙</div>
-          <div style="font-size:0.8rem; color:#aaa;">MOEDAS</div>
-          <b id="coins-display" style="color:gold; font-size:1.2rem;">0</b>
+          <div style="font-size:0.7rem; color:#aaa; letter-spacing:1px;">MOEDAS</div>
+          <b id="coins-display" style="color:var(--gold); font-size:1.1rem;">0</b>
       </div>
       <div style="text-align:center;">
           <div style="font-size:1.5rem;">🃏</div>
-          <div style="font-size:0.8rem; color:#aaa;">CARTAS</div>
-          <b id="cards-display" style="color:#fff; font-size:1.2rem;">0</b>
+          <div style="font-size:0.7rem; color:#aaa; letter-spacing:1px;">CARTAS</div>
+          <b id="cards-display" style="color:white; font-size:1.1rem;">0</b>
       </div>
     </div>
-
-    <div class="scroll-area" style="overflow:visible;"> <button class="btn" onclick="window.openBetting()">⚔️ Jogar (Apostar)</button>
+    <div class="scroll-area" style="overflow:visible;">
+        <button class="btn" onclick="window.openBetting()">⚔️ Duelar (Aposta)</button>
         <button class="btn btn-green" onclick="window.openMarket()">🏪 Mercado Global</button>
-        <button class="btn" onclick="window.openCollection()">🗂️ Minha Coleção</button>
+        <button class="btn btn-blue" onclick="window.openTrading()">🤝 Trocas P2P</button>
+        <button class="btn" style="background:#444;" onclick="window.openCollection()">🗂️ Minha Coleção</button>
         <button class="btn btn-orange" onclick="window.buyBooster()">🎁 Abrir Pacote (500)</button>
     </div>
-    <button class="btn" style="background:#444; box-shadow:none; margin-top:10px;" onclick="window.closeAll()">Sair</button>
   </div>
 </div>
 
+<div id="screen-trade-lobby" class="screen">
+    <div class="panel">
+        <h3 style="color:var(--neon-blue);">SALA DE TROCAS</h3>
+        <p style="font-size:0.9rem; color:#ccc;">Troque cartas em tempo real.</p>
+        <button class="btn" onclick="window.createTrade()">CRIAR SALA</button>
+        <button class="btn btn-blue" onclick="window.joinTrade()">ENTRAR COM ID</button>
+        <button class="btn" style="background:#444; box-shadow:none;" onclick="window.openMenu()">VOLTAR</button>
+    </div>
+</div>
+
+<div id="screen-trade-room" class="screen">
+    <div class="panel" style="max-width:600px;">
+        <h3 style="margin:0;">NEGOCIAÇÃO</h3>
+        <div style="font-size:0.8rem; color:#aaa; background:rgba(0,0,0,0.4); padding:4px 10px; border-radius:20px; margin-top:5px; display:inline-block;">ID: <span id="trade-id-display" style="color:white; font-family:monospace;">...</span></div>
+        <div id="trade-status" style="margin-top:10px; color:var(--gold); font-weight:bold; font-size:0.9rem;">Aguardando oponente...</div>
+        
+        <div class="trade-table">
+            <div id="my-offer-slot" class="trade-slot">Sua Oferta</div>
+            <div style="font-size:24px; color:var(--neon-blue); animation: pulse 1s infinite;">⇄</div>
+            <div id="their-offer-slot" class="trade-slot">Oponente</div>
+        </div>
+
+        <div style="text-align:left; font-size:0.8rem; margin-bottom:5px; padding-left:5px; color:#aaa;">Selecione sua carta:</div>
+        <div class="scroll-area" style="height:150px; background:rgba(0,0,0,0.2); border-radius:10px;">
+            <div class="grid" id="trade-collection"></div>
+        </div>
+
+        <div style="display:flex; gap:10px; width:100%;">
+            <button class="btn btn-green" onclick="window.confirmTrade()">CONFIRMAR</button>
+            <button class="btn" style="background:#444; box-shadow:none;" onclick="window.openMenu()">SAIR</button>
+        </div>
+    </div>
+</div>
+
 <div id="screen-booster" class="screen">
-  <div class="panel" style="background: rgba(10, 10, 20, 0.95); border: 2px solid gold; box-shadow: 0 0 50px rgba(255,215,0,0.3);">
-    <h2 style="color:gold; text-shadow:0 0 20px gold; font-family:'Titan One'; font-size:1.5rem; letter-spacing:2px;">PACOTE ABERTO!</h2>
+  <div class="panel" style="border-color:gold; box-shadow: 0 0 50px rgba(241, 196, 15, 0.2);">
+    <h2 style="color:gold; text-shadow:0 0 10px gold;">PACOTE ABERTO!</h2>
     <div id="booster-display"></div>
-    <p style="font-size:11px; color:#aaa; margin-top:10px;">As cartas foram adicionadas à sua coleção.</p>
-    <button class="btn" style="margin-top:10px;" onclick="window.openMenu()">CONTINUAR</button>
+    <button class="btn" style="margin-top:20px;" onclick="window.openMenu()">GUARDAR CARTAS</button>
   </div>
 </div>
 
 <div id="screen-bet" class="screen">
   <div class="panel">
     <h3>SELEÇÃO DE APOSTA</h3>
-    <div class="small" style="margin-bottom:10px; color:#aaa; font-size:12px;">Escolha 1, 3 ou 5 cartas para o duelo.</div>
-    <div class="scroll-area">
-        <div class="grid" id="bet-grid"></div>
+    <p style="font-size:0.8rem; color:#aaa; margin-top:-10px;">Escolha 1, 3 ou 5 cartas.</p>
+    <div class="scroll-area"><div class="grid" id="bet-grid"></div></div>
+    <div style="display:flex; gap:10px; width:100%;">
+        <button class="btn" onclick="window.createMatch()">DUELAR</button>
+        <button class="btn" style="background:#444; box-shadow:none;" onclick="window.openMenu()">VOLTAR</button>
     </div>
-    <button class="btn" onclick="window.createMatch()">BUSCAR OPONENTE</button>
-    <button class="btn" style="background:#444; box-shadow:none;" onclick="window.openMenu()">VOLTAR</button>
   </div>
 </div>
 
 <div id="screen-market" class="screen">
   <div class="panel">
-    <h3>MERCADO GLOBAL</h3>
-    <p style="font-size:11px; color:#ccc; margin-top:-10px;">Compre cartas raras de outros jogadores.</p>
-    <div class="scroll-area" id="market-grid"></div>
+    <h3 style="color:var(--btn-green);">MERCADO GLOBAL</h3>
+    <div class="scroll-area"><div class="grid" id="market-grid"></div></div>
     <button class="btn" style="background:#444; box-shadow:none;" onclick="window.openMenu()">VOLTAR</button>
   </div>
 </div>
@@ -212,20 +296,122 @@
 <div id="screen-collection" class="screen">
   <div class="panel">
     <h3>MINHA COLEÇÃO</h3>
-    <div style="font-size:10px; margin-bottom:5px; display:flex; justify-content:center; gap:15px; padding:5px; background:rgba(0,0,0,0.3); border-radius:10px;">
-        <span style="color:#bdc3c7">⚪ Common</span> 
-        <span style="color:#3498db">🔵 Rare</span> 
-        <span style="color:#9b59b6">🟣 Epic</span> 
-        <span style="color:#f1c40f">🟡 Legend</span>
+    <div style="font-size:0.7rem; margin-bottom:10px; display:flex; gap:10px; justify-content:center;">
+        <span style="color:#bdc3c7">♦ Common</span> <span style="color:#0984e3">♦ Rare</span> 
+        <span style="color:#6c5ce7">♦ Epic</span> <span style="color:#f1c40f">♦ Legend</span>
     </div>
-    <div class="scroll-area">
-        <div class="collection-grid" id="collection-grid"></div>
-    </div>
+    <div class="scroll-area"><div class="grid" id="collection-grid"></div></div>
     <button class="btn" style="background:#444; box-shadow:none;" onclick="window.openMenu()">VOLTAR</button>
   </div>
 </div>
 
 <script src="/socket.io/socket.io.js"></script>
 <script src="game.js"></script>
+
+<script>
+    const bgCanvas = document.getElementById('bg-canvas');
+    const bgCtx = bgCanvas.getContext('2d');
+    
+    let bgW, bgH;
+    let spores = [];
+    const mouse = { x: null, y: null, radius: 150 };
+
+    window.addEventListener('resize', resizeBg);
+    window.addEventListener('mousemove', (e) => { mouse.x = e.x; mouse.y = e.y; });
+    window.addEventListener('touchmove', (e) => { mouse.x = e.touches[0].clientX; mouse.y = e.touches[0].clientY; });
+    window.addEventListener('touchend', () => { mouse.x = null; mouse.y = null; });
+
+    function resizeBg() {
+        bgW = window.innerWidth;
+        bgH = window.innerHeight;
+        bgCanvas.width = bgW;
+        bgCanvas.height = bgH;
+        initSpores();
+    }
+
+    class Spore {
+        constructor() {
+            this.init();
+        }
+        init() {
+            this.x = Math.random() * bgW;
+            this.y = Math.random() * bgH;
+            // MINI ESPOROS: Tamanho reduzido
+            this.size = Math.random() * 1.5 + 0.5; 
+            this.baseX = this.x;
+            this.baseY = this.y;
+            this.density = (Math.random() * 30) + 1;
+            this.speedY = Math.random() * 1 + 0.2;
+            this.alpha = Math.random();
+            this.alphaSpeed = Math.random() * 0.02 + 0.005;
+            // Cores mais brilhantes para ver por cima da UI
+            this.color = Math.random() > 0.5 ? '#ffffff' : '#00cec9'; 
+        }
+        draw() {
+            bgCtx.globalAlpha = this.alpha;
+            bgCtx.fillStyle = this.color;
+            bgCtx.beginPath();
+            bgCtx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+            // Brilho intenso (Glow) para destacar
+            bgCtx.shadowBlur = 8;
+            bgCtx.shadowColor = this.color;
+            bgCtx.fill();
+            bgCtx.globalAlpha = 1;
+            bgCtx.shadowBlur = 0;
+        }
+        update() {
+            // Piscada
+            this.alpha += this.alphaSpeed;
+            if(this.alpha > 1 || this.alpha < 0.2) this.alphaSpeed = -this.alphaSpeed;
+
+            // Flutuar
+            this.y -= this.speedY;
+            if(this.y < -10) this.y = bgH + 10;
+
+            // Interação com Mouse (Empurrar)
+            if(mouse.x != null) {
+                let dx = mouse.x - this.x;
+                let dy = mouse.y - this.y;
+                let distance = Math.sqrt(dx*dx + dy*dy);
+                
+                if (distance < mouse.radius) {
+                    const forceDirectionX = dx / distance;
+                    const forceDirectionY = dy / distance;
+                    const maxDistance = mouse.radius;
+                    const force = (maxDistance - distance) / maxDistance;
+                    const directionX = forceDirectionX * force * this.density;
+                    const directionY = forceDirectionY * force * this.density;
+
+                    this.x -= directionX;
+                    this.y -= directionY;
+                } else {
+                    if (this.x !== this.baseX) {
+                        let dx = this.x - this.baseX;
+                        this.x -= dx/20;
+                    }
+                }
+            }
+        }
+    }
+
+    function initSpores() {
+        spores = [];
+        // Aumentado a quantidade para dar efeito de enxame mágico
+        for(let i=0; i<150; i++) spores.push(new Spore());
+    }
+
+    function animateBg() {
+        bgCtx.clearRect(0, 0, bgW, bgH);
+        for(let i=0; i<spores.length; i++) {
+            spores[i].draw();
+            spores[i].update();
+        }
+        requestAnimationFrame(animateBg);
+    }
+
+    resizeBg();
+    animateBg();
+</script>
+
 </body>
 </html>
