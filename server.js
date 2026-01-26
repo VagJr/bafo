@@ -5,600 +5,462 @@ const io = require("socket.io")(http);
 const path = require("path");
 const fs = require("fs");
 
-// Node 18+ tem fetch global, mas deixo compatível:
 const fetchFn = global.fetch ? global.fetch : (...args) => import("node-fetch").then(({default: fetch}) => fetch(...args));
 
-// --------------------
-// POSTGRES (Render)
-// --------------------
-let Pool = null;
-try { Pool = require("pg").Pool; } catch(e) {}
-
-const HAS_PG = !!(Pool && process.env.DATABASE_URL);
-
-const pool = HAS_PG ? new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false }
-}) : null;
-
-// --------------------
-// STATIC
-// --------------------
 app.use(express.static(path.join(__dirname, ".")));
 
-// --------------------
-// LOCAL DB FALLBACK
-// --------------------
 const DB_FILE = "db.json";
 let DATABASE = { users: {}, market: [] };
 const BOT_NAME = "LumiaBot";
 
-// runtime objects
+// DB Init
+if (fs.existsSync(DB_FILE)) {
+  try {
+    DATABASE = JSON.parse(fs.readFileSync(DB_FILE));
+    if (!DATABASE.market) DATABASE.market = [];
+    if (!DATABASE.users) DATABASE.users = {};
+  } catch (e) { saveDB(); }
+} else { saveDB(); }
+
+if (!DATABASE.users[BOT_NAME]) {
+    DATABASE.users[BOT_NAME] = { 
+        username: BOT_NAME, gold: 999999, mana: 999999, essence: 999999, collection: [], isBot: true, wins: 0 
+    };
+    saveDB();
+}
+
+function saveDB() { try { fs.writeFileSync(DB_FILE, JSON.stringify(DATABASE, null, 2)); } catch(e) { console.error(e); } }
+
 const MATCHES = {};
-const TRADES = {};
+const TRADES = {}; 
 const SOCKET_USER_MAP = {};
+let LORCANA_CACHE = null;
+let LORCANA_CACHE_TIME = 0;
+
+async function getLorcanaAllCached() {
+    const now = Date.now();
+    if (LORCANA_CACHE && (now - LORCANA_CACHE_TIME) < 60 * 60 * 1000) return LORCANA_CACHE;
+
+    try {
+        const res = await fetchWithTimeout("https://api.lorcana-api.com/cards/all", 3500);
+        const all = await res.json();
+        if (Array.isArray(all) && all.length > 0) {
+            LORCANA_CACHE = all;
+            LORCANA_CACHE_TIME = now;
+            return all;
+        }
+    } catch (e) {}
+
+    return LORCANA_CACHE || [];
+}
+
 
 function uid() { return Math.random().toString(36).slice(2, 10); }
-
-// --------------------
-// DB: Local
-// --------------------
-function saveLocalDB() {
-  try {
-    fs.writeFileSync(DB_FILE, JSON.stringify(DATABASE, null, 2));
-  } catch(e) {
-    console.error("Erro ao salvar DB:", e);
-  }
-}
-function loadLocalDB() {
-  if (fs.existsSync(DB_FILE)) {
+async function fetchWithTimeout(url, ms = 2500) {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), ms);
     try {
-      DATABASE = JSON.parse(fs.readFileSync(DB_FILE, "utf8"));
-      if (!DATABASE.market) DATABASE.market = [];
-      if (!DATABASE.users) DATABASE.users = {};
+        const res = await fetchFn(url, { signal: ctrl.signal });
+        clearTimeout(t);
+        return res;
     } catch (e) {
-      console.error("Erro ao ler DB, resetando:", e);
-      DATABASE = { users: {}, market: [] };
-      saveLocalDB();
+        clearTimeout(t);
+        throw e;
     }
-  } else {
-    saveLocalDB();
-  }
 }
 
-// --------------------
-// DB: Postgres
-// --------------------
-async function initPG() {
-  if (!pool) return;
+// --- API ---
+async function fetchRandomCard(forcedSource) {
+    const sources = ['pokemon', 'mtg', 'lorcana'];
+    const source = forcedSource || sources[Math.floor(Math.random() * sources.length)];
+    let cardData = { name: "Carta", image: "/assets/placeholder.png", rarity: "common", source: "System" };
 
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS users (
-      username TEXT PRIMARY KEY,
-      coins INT NOT NULL DEFAULT 0,
-      collection JSONB NOT NULL DEFAULT '[]',
-      lastlogin TEXT DEFAULT '',
-      isbot BOOLEAN DEFAULT FALSE
-    );
-  `);
-
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS market (
-      listingid TEXT PRIMARY KEY,
-      seller TEXT NOT NULL,
-      card JSONB NOT NULL,
-      price INT NOT NULL,
-      timestamp BIGINT NOT NULL
-    );
-  `);
-
-  await pool.query(`CREATE INDEX IF NOT EXISTS idx_market_ts ON market(timestamp DESC);`);
-}
-
-async function pgLoadAll() {
-  if (!pool) return;
-
-  const usersRes = await pool.query("SELECT * FROM users");
-  DATABASE.users = {};
-  for (const row of usersRes.rows) {
-    DATABASE.users[row.username] = {
-      username: row.username,
-      coins: Number(row.coins || 0),
-      collection: Array.isArray(row.collection) ? row.collection : [],
-      lastLogin: row.lastlogin || "",
-      isBot: !!row.isbot
-    };
-  }
-
-  const marketRes = await pool.query("SELECT * FROM market ORDER BY timestamp DESC LIMIT 5000");
-  DATABASE.market = marketRes.rows.map(r => ({
-    listingId: r.listingid,
-    seller: r.seller,
-    card: r.card,
-    price: Number(r.price || 0),
-    timestamp: Number(r.timestamp || Date.now())
-  }));
-}
-
-async function pgUpsertUser(user) {
-  if (!pool) return;
-  await pool.query(`
-    INSERT INTO users (username, coins, collection, lastlogin, isbot)
-    VALUES ($1,$2,$3,$4,$5)
-    ON CONFLICT (username)
-    DO UPDATE SET coins=$2, collection=$3, lastlogin=$4, isbot=$5
-  `, [
-    user.username,
-    Number(user.coins || 0),
-    JSON.stringify(user.collection || []),
-    user.lastLogin || "",
-    !!user.isBot
-  ]);
-}
-
-async function pgInsertMarket(item) {
-  if (!pool) return;
-  await pool.query(`
-    INSERT INTO market (listingid, seller, card, price, timestamp)
-    VALUES ($1,$2,$3,$4,$5)
-    ON CONFLICT (listingid)
-    DO NOTHING
-  `, [
-    item.listingId,
-    item.seller,
-    JSON.stringify(item.card),
-    Number(item.price || 0),
-    Number(item.timestamp || Date.now())
-  ]);
-}
-
-async function pgDeleteMarket(listingId) {
-  if (!pool) return;
-  await pool.query(`DELETE FROM market WHERE listingid=$1`, [listingId]);
-}
-
-// Persistência unificada (não esquece nada)
-async function saveDB() {
-  if (HAS_PG) {
     try {
-      // salva users
-      for (const uName in DATABASE.users) {
-        await pgUpsertUser(DATABASE.users[uName]);
-      }
+        if (source === 'pokemon') {
+            const res = await fetchFn('https://api.pokemontcg.io/v2/cards?pageSize=1&page=' + Math.floor(Math.random() * 800));
+            const data = await res.json();
+            if(data.data && data.data[0]) {
+                const c = data.data[0];
+                cardData = { name: c.name, image: c.images.large || c.images.small, rarity: mapRarity(c.rarity), source: "Pokémon" };
+            }
+        } else if (source === 'mtg') {
+            const res = await fetchFn('https://api.scryfall.com/cards/random');
+            const c = await res.json();
+            const img = c.image_uris ? c.image_uris.normal : (c.card_faces ? c.card_faces[0].image_uris.normal : "");
+            if(img) cardData = { name: c.name, image: img, rarity: mapRarity(c.rarity), source: "Magic" };
+        } else if (source === 'lorcana') {
+             try {
+                const all = await getLorcanaAllCached();
 
-      // sincroniza market (simples e confiável)
-      // (para market não acumular fantasmas quando muda muito)
-      await pool.query("DELETE FROM market");
-      for (const item of DATABASE.market) {
-        await pgInsertMarket(item);
-      }
-    } catch (e) {
-      console.error("Erro PG saveDB:", e);
-    }
-  } else {
-    saveLocalDB();
-  }
-}
-
-// --------------------
-// BOOT
-// --------------------
-async function initStorage() {
-  if (HAS_PG) {
-    console.log("DB: usando PostgreSQL (Render)");
-    await initPG();
-    await pgLoadAll();
-  } else {
-    console.log("DB: usando db.json local");
-    loadLocalDB();
-  }
-
-  // Garante Bot
-  if (!DATABASE.users[BOT_NAME]) {
-    DATABASE.users[BOT_NAME] = { username: BOT_NAME, coins: 999999, collection: [], isBot: true };
-    await saveDB();
-  } else {
-    DATABASE.users[BOT_NAME].isBot = true;
-  }
-}
-
-// --------------------
-// API: CARTAS (mantido)
-// --------------------
-async function fetchRandomCard() {
-  const sources = ['pokemon', 'mtg', 'lorcana'];
-  const source = sources[Math.floor(Math.random() * sources.length)];
-  let cardData = { name: "Carta", image: "https://via.placeholder.com/150", rarity: "common", source: "System" };
-
-  try {
-    if (source === 'pokemon') {
-      const res = await fetchFn('https://api.pokemontcg.io/v2/cards?pageSize=1&page=' + Math.floor(Math.random() * 800));
-      const data = await res.json();
-      const c = data.data[0];
-      if(c) cardData = { name: c.name, image: c.images.large || c.images.small, rarity: mapRarity(c.rarity), source: "Pokémon" };
-    }
-    else if (source === 'mtg') {
-      const res = await fetchFn('https://api.scryfall.com/cards/random');
-      const c = await res.json();
-      if(c) {
-        const img = c.image_uris ? c.image_uris.normal : (c.card_faces ? c.card_faces[0].image_uris.normal : "");
-        cardData = { name: c.name, image: img, rarity: mapRarity(c.rarity), source: "Magic" };
-      }
-    }
-    else if (source === 'lorcana') {
-      try {
-        const res = await fetchFn('https://api.lorcana-api.com/cards/all');
-        const all = await res.json();
-        if(all && all.length > 0) {
-          const c = all[Math.floor(Math.random() * all.length)];
-          cardData = { name: c.Name, image: c.Image, rarity: mapRarity(c.Rarity), source: "Lorcana" };
+                if(all.length > 0) {
+                    const c = all[Math.floor(Math.random() * all.length)];
+                    cardData = { name: c.Name, image: c.Image, rarity: mapRarity(c.Rarity), source: "Lorcana" };
+                }
+            } catch(e){}
         }
-      } catch(e) {}
+    } catch (e) {}
+    return cardData;
+}
+
+function mapRarity(raw) {
+    if(!raw) return "common";
+    const r = String(raw).toLowerCase();
+    if (r.includes('rare') || r.includes('holo')) return 'rare';
+    if (r.includes('ultra') || r.includes('mythic') || r.includes('secret')) return 'epic';
+    if (r.includes('legend') || r.includes('enchanted')) return 'legend';
+    return 'common';
+}
+
+async function generateBooster(ownerName, weights) {
+    const w = weights || { pokemon: 33, magic: 33, lorcana: 33 };
+
+    function pickSource() {
+        const total = (w.pokemon + w.magic + w.lorcana);
+        const rand = Math.random() * total;
+
+        let source = 'pokemon';
+        if (rand < w.pokemon) source = 'pokemon';
+        else if (rand < w.pokemon + w.magic) source = 'mtg';
+        else source = 'lorcana';
+
+        // "chato": nunca 100% garantido
+        if (Math.random() < 0.15) {
+            source = ['pokemon','mtg','lorcana'][Math.floor(Math.random() * 3)];
+        }
+        return source;
     }
-  } catch (err) {}
 
-  return cardData;
+    const tasks = [];
+    for (let i = 0; i < 3; i++) {
+        const source = pickSource();
+        tasks.push(fetchRandomCard(source));
+    }
+
+    const results = await Promise.all(tasks);
+
+    return results.map(data => ({
+        uid: uid(),
+        name: data.name,
+        image: data.image,
+        rarity: data.rarity,
+        source: data.source,
+        originalOwner: ownerName,
+        flipped: false
+    }));
 }
 
-function mapRarity(rawRarity) {
-  if(!rawRarity) return "common";
-  const r = String(rawRarity).toLowerCase();
-  if (r.includes('rare') || r.includes('holo')) return 'rare';
-  if (r.includes('ultra') || r.includes('mythic') || r.includes('vmax') || r.includes('secret')) return 'epic';
-  if (r.includes('legend') || r.includes('enchanted')) return 'legend';
-  return 'common';
-}
 
-async function generateBooster(ownerName, count) {
-  const promises = [];
-  for (let i = 0; i < count; i++) promises.push(fetchRandomCard());
-  const results = await Promise.all(promises);
-
-  return results.map(data => ({
-    uid: uid(),
-    name: data.name,
-    image: data.image,
-    rarity: data.rarity,
-    source: data.source,
-    originalOwner: ownerName,
-    flipped: false,
-  }));
-}
-
-// --------------------
-// BOT ECONOMY (SAFE LOOP) (mantido e persistindo)
-// --------------------
+// --- BOT LOGIC ---
 setInterval(async () => {
-  try {
-    const bot = DATABASE.users[BOT_NAME];
-    if (!bot) return;
-    if (!DATABASE.market) DATABASE.market = [];
-
-    // Bot compra (mantido)
-    const sample = DATABASE.market.filter(m => m && m.seller !== BOT_NAME).slice(0, 5);
-    for (const item of sample) {
-      if (!item || !item.card) continue;
-
-      if (bot.coins >= item.price && Math.random() < 0.3) {
-        const idx = DATABASE.market.findIndex(m => m.listingId === item.listingId);
-        if (idx > -1) {
-          const buyItem = DATABASE.market[idx];
-
-          bot.coins -= buyItem.price;
-          bot.collection.push({ ...buyItem.card, originalOwner: BOT_NAME });
-
-          if(DATABASE.users[buyItem.seller]) {
-            DATABASE.users[buyItem.seller].coins += buyItem.price;
-          }
-
-          DATABASE.market.splice(idx, 1);
-
-          io.emit("market_update", DATABASE.market);
-          await saveDB();
-          break; // Compra 1 por vez
+    try {
+        const bot = DATABASE.users[BOT_NAME];
+        if(!bot) return;
+        if (bot.collection.length > 30 && Math.random() < 0.2) {
+            const c = bot.collection.splice(0, 1)[0];
+            DATABASE.market.push({ listingId: uid(), seller: BOT_NAME, card: c, price: Math.floor(Math.random()*300)+50 });
+            io.emit("market_update", DATABASE.market);
+            saveDB();
         }
-      }
-    }
+        if (bot.collection.length < 10) {
+            const pack = await generateBooster(BOT_NAME, { pokemon:100, magic:100, lorcana:100 });
+            bot.collection.push(...pack);
+        }
+    } catch(e){}
+}, 10000);
 
-    // Bot vende (mantido)
-    if(bot.collection.length > 30) {
-      const card = bot.collection.splice(0, 1)[0];
-      const price = Math.floor(Math.random() * 200) + 50;
-
-      DATABASE.market.push({
-        listingId: uid(),
-        seller: BOT_NAME,
-        card,
-        price,
-        timestamp: Date.now()
-      });
-
-      io.emit("market_update", DATABASE.market);
-      await saveDB();
-    }
-  } catch (err) {
-    console.error("Erro no Loop do Bot:", err);
-  }
-}, 15000);
-
-
-// --------------------
-// SOCKETS (seu código inteiro)
-// --------------------
 io.on("connection", (socket) => {
+    const onlineCount = io.engine.clientsCount;
+    io.emit("online_count", onlineCount);
 
-  // Atualiza contador
-  io.emit("online_count", io.engine.clientsCount);
+    socket.on("login", async (data) => {
+        const { username } = data || {}; if(!username) return;
+        let user = DATABASE.users[username];
+        if(!user) {
+            const deck = await generateBooster(username, {pokemon:100,magic:100,lorcana:100}); 
+            const deck2 = await generateBooster(username, {pokemon:100,magic:100,lorcana:100});
+            user = { username, gold: 1000, mana: 1000, essence: 1000, collection: [...deck, ...deck2], lastLogin: "", wins: 0 };
+            DATABASE.users[username] = user;
+        }
+        
+        const today = new Date().toDateString();
+        if (user.lastLogin !== today) { 
+            user.gold = (user.gold||0) + 1000; 
+            user.mana = (user.mana||0) + 1000; 
+            user.essence = (user.essence||0) + 1000; 
+            user.lastLogin = today; 
+            socket.emit("notification", "🎁 +1000 de Tudo (Diário)!");
+        }
+        
+        SOCKET_USER_MAP[socket.id] = username;
+        saveDB();
+        socket.emit("login_success", user);
+        socket.emit("market_update", DATABASE.market);
+    });
 
-  socket.on("login", async (data) => {
-    try {
-      const { username } = data || {};
-      if (!username) return;
-
-      let user = DATABASE.users[username];
-
-      if (!user) {
-        const starterDeck = await generateBooster(username, 6);
-        user = { username, coins: 1000, collection: starterDeck, lastLogin: "" };
-        DATABASE.users[username] = user;
-      }
-
-      const today = new Date().toDateString();
-      if (user.lastLogin !== today) {
-        user.coins += 2000;
-        user.lastLogin = today;
-        socket.emit("notification", "🎁 +2000 Moedas Diárias!");
-      }
-
-      await saveDB();
-
-      SOCKET_USER_MAP[socket.id] = username;
-
-      socket.emit("login_success", user);
-      socket.emit("market_update", DATABASE.market);
-    } catch(e) { console.error("Login Error:", e); }
-  });
-
-  // --- CHAT GLOBAL ---
-  socket.on("chat_send", (msg) => {
-    const username = SOCKET_USER_MAP[socket.id];
-    if(username && msg.trim().length > 0) {
-      const cleanMsg = msg.substring(0, 100);
-      io.emit("chat_message", { user: username, text: cleanMsg });
-    }
-  });
-
-  // --- COMPRA PACOTE ---
-  socket.on("buy_booster", async () => {
-    try {
-      const username = SOCKET_USER_MAP[socket.id];
-      if(!username) return;
-
-      const user = DATABASE.users[username];
-      if(user.coins >= 500) {
-        user.coins -= 500;
-        socket.emit("notification", "Gerando pacote...");
-
-        const newCards = await generateBooster(username, 3);
-        user.collection.push(...newCards);
-
-        await saveDB();
-
-        socket.emit("update_profile", user);
-        socket.emit("booster_opened", newCards);
-      } else socket.emit("notification", "Sem moedas (500)!");
-    } catch(e) { console.error("Booster Error:", e); }
-  });
-
-  // --- MERCADO ---
-  socket.on("market_sell", async (d) => {
-    try {
-      const username = SOCKET_USER_MAP[socket.id];
-      if(!username) return;
-
-      const u = DATABASE.users[username];
-      const idx = u.collection.findIndex(c => c.uid === d.cardUID);
-
-      if(idx > -1) {
-        const card = u.collection.splice(idx, 1)[0];
-
-        DATABASE.market.push({
-          listingId: uid(),
-          seller: u.username,
-          card,
-          price: d.price,
-          timestamp: Date.now()
-        });
-
-        await saveDB();
-
+    socket.on("currency_swap", (data) => {
+        const u = DATABASE.users[SOCKET_USER_MAP[socket.id]];
+        if(!u) return;
+        const amount = parseInt(data.amount);
+        if(isNaN(amount) || amount <= 0) return socket.emit("notification", "Valor inválido.");
+        if ((u[data.from] || 0) < amount) return socket.emit("notification", `Sem ${data.from} suficiente!`);
+        u[data.from] -= amount;
+        u[data.to] = (u[data.to] || 0) + amount;
+        saveDB();
         socket.emit("update_profile", u);
-        io.emit("market_update", DATABASE.market);
-        socket.emit("notification", "Carta listada!");
-      }
-    } catch(e) { console.error("Sell Error:", e); }
-  });
+        socket.emit("notification", "Troca realizada!");
+    });
 
-  socket.on("market_buy", async (listingId) => {
-    try {
-      const buyerName = SOCKET_USER_MAP[socket.id];
-      if(!buyerName) return;
+    socket.on("buy_booster_multiverse", async (payment) => {
+        const u = DATABASE.users[SOCKET_USER_MAP[socket.id]];
+        const total = (payment.gold||0) + (payment.mana||0) + (payment.essence||0);
+        if (total !== 500) return socket.emit("notification", "O custo total deve ser 500!");
+        
+        if (u.gold >= payment.gold && u.mana >= payment.mana && u.essence >= payment.essence) {
+            u.gold -= payment.gold; u.mana -= payment.mana; u.essence -= payment.essence;
+            const weights = { pokemon: payment.gold, magic: payment.mana, lorcana: payment.essence };
+            
+            // O cliente vai mostrar a animação de loading enquanto isso processa
+            const cards = await generateBooster(u.username, weights);
+            u.collection.push(...cards);
+            saveDB();
+            
+            socket.emit("update_profile", u);
+            socket.emit("booster_opened", cards); 
+        } else {
+            socket.emit("notification", "Recursos insuficientes!");
+        }
+    });
 
-      const buyer = DATABASE.users[buyerName];
-      const idx = DATABASE.market.findIndex(m => m.listingId === listingId);
+    socket.on("chat_send", (msg) => {
+        const u = SOCKET_USER_MAP[socket.id];
+        if(u && msg) io.emit("chat_message", { user: u, text: msg.substring(0, 100) });
+    });
 
-      if(idx === -1) return socket.emit("notification", "Já foi vendida!");
+    // --- MATCH (SMART BOT JOIN) ---
+    socket.on("create_match", async (selectedUIDs) => {
+        const username = SOCKET_USER_MAP[socket.id];
+        const user = DATABASE.users[username];
+        if (!user) return;
 
-      const item = DATABASE.market[idx];
+        const betCards = selectedUIDs.map(id => user.collection.find(c => c.uid === id)).filter(Boolean);
 
-      if(buyer.coins >= item.price) {
-        buyer.coins -= item.price;
-        buyer.collection.push(item.card);
-
-        DATABASE.market.splice(idx, 1);
-
-        if(DATABASE.users[item.seller]) {
-          DATABASE.users[item.seller].coins += item.price;
+        if (betCards.length !== selectedUIDs.length) {
+            socket.emit("update_profile", user);
+            return socket.emit("notification", "Erro: Sincronize a coleção.");
         }
 
-        await saveDB();
+        let room = null;
+        for (const id in MATCHES) {
+            const r = MATCHES[id];
+            if (!r.started && r.players.length < 2 && !r.isBotMatch && r.betAmount === betCards.length) { room = r; break; }
+        }
 
-        socket.emit("update_profile", buyer);
-        io.emit("market_update", DATABASE.market);
-        socket.emit("notification", "Compra realizada!");
-      } else {
-        socket.emit("notification", "Moedas insuficientes.");
-      }
-    } catch(e) { console.error("Buy Error:", e); }
-  });
+        if (!room) {
+            const rid = "room_" + uid();
+            MATCHES[rid] = {
+                id: rid, players: [socket.id], usernames: [username],
+                betAmount: betCards.length, pot: [...betCards], scores: {[username]:0},
+                started: false, isBotMatch: false, createdAt: Date.now()
+            };
+            socket.join(rid);
+            socket.emit("waiting_opponent");
+            
+            // LÓGICA INTELIGENTE DO BOT
+// ✅ BOT CONSTANTE: entra rápido quando a fila está vazia
+const waitTime = 800; // <1s SEMPRE
 
-  // --- MATCHMAKING & GAME ---
-  socket.on("create_match", async (selectedUIDs) => {
-    try {
-      const username = SOCKET_USER_MAP[socket.id];
-      if(!username) return;
+setTimeout(async () => {
+    const r = MATCHES[rid];
+    if (!r || r.started) return;
 
-      const userObj = DATABASE.users[username];
-      const betCards = userObj.collection.filter(c => selectedUIDs.includes(c.uid));
+    // entrou um player humano? cancela bot
+    if (r.players.length >= 2) return;
 
-      if (betCards.length !== selectedUIDs.length) return socket.emit("notification", "Erro: Cartas não encontradas.");
+    // ✅ prioridade total: poucos jogadores = bot sempre entra
+    const online = io.engine.clientsCount;
+    const mustFill = (online <= 3); // até 3 online, bot garante jogo
+    if (!mustFill) {
+        // se tem bastante gente online, dá uma chance de PVP
+        if (Math.random() > 0.30) return;
+    }
 
-      let room = null;
-      for (const id in MATCHES) {
-        const r = MATCHES[id];
-        if (!r.started && r.players.length < 2 && r.betAmount === betCards.length && !r.isBotMatch) { room = r; break; }
-      }
+    // ✅ não depender de API lenta pra não travar fila:
+    // gera cartas de forma leve (reaproveitando cartas do bot, ou fallback rápido)
+    let botBet = [];
 
-      if (!room) {
-        const rid = "room_" + socket.id;
-        MATCHES[rid] = {
-          id: rid, players: [socket.id], usernames: [username],
-          betAmount: betCards.length, pot: [...betCards], scores: { [username]: 0 },
-          started: false, isBotMatch: false
-        };
-        socket.join(rid);
-        socket.emit("waiting_opponent");
+    // usa cartas do bot primeiro (instantâneo)
+    const botUser = DATABASE.users[BOT_NAME];
+    while (botUser.collection.length < r.betAmount) {
+        // se não tiver estoque, gera booster (pode demorar, mas só quando falta)
+        const pack = await generateBooster(BOT_NAME, { pokemon:150, magic:150, lorcana:150 });
+        botUser.collection.push(...pack);
+    }
 
-        // Bot Join Logic
-        setTimeout(async () => {
-          const r = MATCHES[rid];
-          if (r && !r.started) {
-            const botBet = await generateBooster(BOT_NAME, r.betAmount);
-            r.players.push("BOT_ID"); r.usernames.push(BOT_NAME);
-            r.pot.push(...botBet); r.scores[BOT_NAME] = 0;
-            r.started = true; r.isBotMatch = true;
-            startMatch(r);
-          }
-        }, 4000);
-      } else {
-        room.players.push(socket.id); room.usernames.push(username);
-        room.pot.push(...betCards); room.scores[username] = 0;
-        room.started = true;
-        socket.join(room.id);
-        startMatch(room);
-      }
-    } catch(e) { console.error("Match Error:", e); }
-  });
+    botBet = botUser.collection.splice(0, r.betAmount);
 
-  function startMatch(room) {
-    room.pot.sort(() => Math.random() - 0.5);
-    room.turnIndex = 0; room.turnId = uid();
-    io.to(room.id).emit("game_start", {
-      roomId: room.id,
-      pot: room.pot,
-      currentTurn: room.players[0],
-      turnId: room.turnId,
-      usernames: room.usernames
+    r.players.push("BOT_ID");
+    r.usernames.push(BOT_NAME);
+    r.pot.push(...botBet);
+    r.scores[BOT_NAME] = 0;
+    r.started = true;
+    r.isBotMatch = true;
+
+    startMatch(r);
+
+}, waitTime);
+
+        } else {
+            room.players.push(socket.id); room.usernames.push(username);
+            room.pot.push(...betCards); room.scores[username] = 0;
+            room.started = true;
+            socket.join(room.id);
+            startMatch(room);
+        }
     });
-  }
 
-  // Ações In-Game
-  socket.on("action_blow", (d) => {
-    const r = MATCHES[d.roomId];
-    if(r && !r.actionUsed) { r.actionUsed = true; io.to(d.roomId).emit("action_blow", d); }
-  });
-
-  socket.on("bot_play_trigger", (roomId) => {
-    const r = MATCHES[roomId];
-    if(r && r.isBotMatch && r.players[r.turnIndex] === "BOT_ID" && !r.actionUsed) {
-      io.to(roomId).emit("bot_should_play", { turnId: r.turnId });
-    }
-  });
-
-  socket.on("card_flip_claim", async (d) => {
-    try {
-      const room = MATCHES[d.roomId];
-      if (!room) return;
-
-      const idx = room.pot.findIndex(c => c.uid === d.cardUID);
-      if (idx === -1) return;
-
-      const card = room.pot[idx];
-      room.pot.splice(idx, 1);
-
-      let wId = d.winnerIsBot ? "BOT_ID" : socket.id;
-      let wName = d.winnerIsBot ? BOT_NAME : SOCKET_USER_MAP[wId];
-      room.scores[wName] = (room.scores[wName] || 0) + 1;
-
-      const wUser = DATABASE.users[wName];
-      if(wUser) wUser.collection.push({ ...card, originalOwner: wName });
-
-      await saveDB();
-
-      if(!d.winnerIsBot) socket.emit("update_profile", wUser);
-      io.to(room.id).emit("card_won", { cardUID: card.uid, winnerId: wId });
-
-      if(room.pot.length === 0) endGame(room);
-    } catch(e) { console.error("Claim Error:", e); }
-  });
-
-  function endGame(room) {
-    const p1 = room.usernames[0];
-    const p2 = room.usernames[1];
-    const s1 = room.scores[p1] || 0;
-    const s2 = room.scores[p2] || 0;
-
-    let msg = "Empate!";
-    if(s1 > s2) { msg = `${p1} Venceu!`; addCoins(p1, 250); }
-    else if(s2 > s1) { msg = `${p2} Venceu!`; addCoins(p2, 250); }
-    else { addCoins(p1, 100); addCoins(p2, 100); }
-
-    io.to(room.id).emit("game_over", { message: msg });
-    delete MATCHES[room.id];
-  }
-
-  async function addCoins(user, qtd) {
-    if(DATABASE.users[user]) {
-      DATABASE.users[user].coins += qtd;
-      await saveDB();
+    function startMatch(r) {
+        r.pot.sort(() => Math.random() - 0.5);
+        r.turnIndex = 0; r.turnId = uid();
+        io.to(r.id).emit("game_start", { roomId: r.id, pot: r.pot, currentTurn: r.players[0], turnId: r.turnId, usernames: r.usernames });
     }
 
-    for(let sid in SOCKET_USER_MAP) {
-      if(SOCKET_USER_MAP[sid] === user) io.to(sid).emit("update_profile", DATABASE.users[user]);
-    }
-  }
+    socket.on("action_blow", (d) => {
+        const r = MATCHES[d.roomId];
+        if(r && !r.actionUsed) { r.actionUsed = true; io.to(d.roomId).emit("action_blow", d); }
+    });
 
-  socket.on("turn_end_request", (d) => {
-    const r = MATCHES[d.roomId];
-    if(r) {
-      r.turnIndex = (r.turnIndex + 1) % 2;
-      r.turnId = uid(); r.actionUsed = false;
-      io.to(r.id).emit("new_turn", { nextTurn: r.players[r.turnIndex], turnId: r.turnId });
-    }
-  });
+    socket.on("bot_play_trigger", (rid) => {
+        const r = MATCHES[rid];
+        if(r && r.isBotMatch && r.players[r.turnIndex] === "BOT_ID" && !r.actionUsed) {
+            io.to(rid).emit("bot_should_play", { turnId: r.turnId });
+        }
+    });
 
-  socket.on("disconnect", () => {
-    delete SOCKET_USER_MAP[socket.id];
-    io.emit("online_count", io.engine.clientsCount);
-  });
+    socket.on("card_flip_claim", (d) => {
+        const r = MATCHES[d.roomId];
+        if(!r) return;
+        const idx = r.pot.findIndex(c => c.uid === d.cardUID);
+        if(idx === -1) return;
+
+        const card = r.pot[idx];
+        r.pot.splice(idx, 1);
+
+        const winnerId = d.winnerIsBot ? "BOT_ID" : socket.id;
+        const winnerName = d.winnerIsBot ? BOT_NAME : SOCKET_USER_MAP[winnerId];
+        r.scores[winnerName] = (r.scores[winnerName] || 0) + 1;
+
+        const winner = DATABASE.users[winnerName];
+        const loser = DATABASE.users[card.originalOwner];
+
+        if(loser) {
+            const lIdx = loser.collection.findIndex(c => c.uid === card.uid);
+            if(lIdx > -1) loser.collection.splice(lIdx, 1);
+        }
+        if(winner) {
+            winner.collection.push({ ...card, originalOwner: winnerName, flipped: false });
+        }
+        saveDB();
+
+        if(!d.winnerIsBot) socket.emit("update_profile", winner);
+        if(loser && !d.winnerIsBot && card.originalOwner !== BOT_NAME) {
+             const lSid = Object.keys(SOCKET_USER_MAP).find(k => SOCKET_USER_MAP[k] === card.originalOwner);
+             if(lSid) io.to(lSid).emit("update_profile", loser);
+        }
+
+        io.to(r.id).emit("card_won", { cardUID: card.uid, winnerId });
+
+        if(r.pot.length === 0) endGame(r);
+    });
+
+    function endGame(r) {
+        const p1 = r.usernames[0]; const p2 = r.usernames[1];
+        const s1 = r.scores[p1]||0; const s2 = r.scores[p2]||0;
+        let msg = "Empate!";
+        if(s1 > s2) { msg = `${p1} Venceu!`; addReward(p1, 100); } 
+        else if(s2 > s1) { msg = `${p2} Venceu!`; addReward(p2, 100); } 
+        else { msg = "Empate! (+50)"; addReward(p1, 50); addReward(p2, 50); }
+        io.to(r.id).emit("game_over", { message: msg });
+        delete MATCHES[r.id];
+    }
+
+    function addReward(uName, qtd) {
+        if(DATABASE.users[uName]) {
+            DATABASE.users[uName].gold = (DATABASE.users[uName].gold||0) + qtd;
+            DATABASE.users[uName].mana = (DATABASE.users[uName].mana||0) + qtd;
+            DATABASE.users[uName].essence = (DATABASE.users[uName].essence||0) + qtd;
+            if(qtd >= 100) DATABASE.users[uName].wins = (DATABASE.users[uName].wins||0) + 1;
+            saveDB();
+            const sid = Object.keys(SOCKET_USER_MAP).find(k => SOCKET_USER_MAP[k] === uName);
+            if(sid) {
+                io.to(sid).emit("update_profile", DATABASE.users[uName]);
+                io.to(sid).emit("notification", `Ganhou +${qtd} moedas!`);
+            }
+        }
+    }
+
+    socket.on("turn_end_request", (d) => {
+        const r = MATCHES[d.roomId];
+        if(r) {
+            r.turnIndex = (r.turnIndex + 1) % 2; r.turnId = uid(); r.actionUsed = false;
+            io.to(r.id).emit("new_turn", { nextTurn: r.players[r.turnIndex], turnId: r.turnId });
+        }
+    });
+
+    socket.on("market_sell", (d) => {
+        const u = DATABASE.users[SOCKET_USER_MAP[socket.id]];
+        const idx = u.collection.findIndex(c => c.uid === d.cardUID);
+        if(idx > -1) {
+            const c = u.collection.splice(idx, 1)[0];
+            DATABASE.market.push({ listingId: uid(), seller: u.username, card: c, price: d.price });
+            saveDB();
+            socket.emit("update_profile", u);
+            io.emit("market_update", DATABASE.market);
+        }
+    });
+    socket.on("market_buy", (lid) => {
+        const buyer = DATABASE.users[SOCKET_USER_MAP[socket.id]];
+        const idx = DATABASE.market.findIndex(m => m.listingId === lid);
+        if(idx > -1 && (buyer.gold||0) >= DATABASE.market[idx].price) {
+            const item = DATABASE.market[idx];
+            buyer.gold -= item.price;
+            buyer.collection.push(item.card);
+            if(DATABASE.users[item.seller]) DATABASE.users[item.seller].gold = (DATABASE.users[item.seller].gold||0) + item.price;
+            DATABASE.market.splice(idx, 1);
+            saveDB();
+            socket.emit("update_profile", buyer);
+            io.emit("market_update", DATABASE.market);
+        }
+    });
+
+    socket.on("get_ranking", () => {
+        const sorted = Object.values(DATABASE.users).filter(u=>!u.isBot).sort((a,b)=>(b.gold||0)-(a.gold||0)).slice(0,10);
+        socket.emit("ranking_data", sorted);
+    });
+
+    socket.on("trade_create", () => { const tid = "t_"+uid(); TRADES[tid]={id:tid,p1:socket.id,p1Name:SOCKET_USER_MAP[socket.id],p2:null}; socket.join(tid); socket.emit("trade_created",tid); });
+    socket.on("trade_join", (tid) => { const t=TRADES[tid]; if(t&&!t.p2){t.p2=socket.id;t.p2Name=SOCKET_USER_MAP[socket.id];socket.join(tid);io.to(tid).emit("trade_joined",{p1:t.p1Name,p2:t.p2Name});} });
+    socket.on("trade_offer", (d) => { 
+        const t=TRADES[d.tradeId]; const u=DATABASE.users[SOCKET_USER_MAP[socket.id]]; const c=u.collection.find(x=>x.uid===d.cardUID);
+        if(socket.id===t.p1) { t.o1=c; t.c1=false; } else { t.o2=c; t.c2=false; }
+        io.to(d.tradeId).emit("trade_updated", {o1:t.o1, o2:t.o2});
+    });
+    socket.on("trade_confirm", (tid) => {
+        const t=TRADES[tid]; if(socket.id===t.p1) t.c1=true; else t.c2=true;
+        if(t.c1 && t.c2 && t.o1 && t.o2) {
+            const u1=DATABASE.users[t.p1Name]; const u2=DATABASE.users[t.p2Name];
+            const i1=u1.collection.findIndex(x=>x.uid===t.o1.uid); const i2=u2.collection.findIndex(x=>x.uid===t.o2.uid);
+            if(i1>-1 && i2>-1) {
+                const c1=u1.collection.splice(i1,1)[0]; const c2=u2.collection.splice(i2,1)[0];
+                c1.originalOwner=t.p2Name; c2.originalOwner=t.p1Name;
+                u1.collection.push(c2); u2.collection.push(c1);
+                saveDB();
+                io.to(t.p1).emit("update_profile", u1); io.to(t.p2).emit("update_profile", u2);
+                io.to(tid).emit("trade_completed"); delete TRADES[tid];
+            }
+        }
+    });
+
+    socket.on("disconnect", () => { delete SOCKET_USER_MAP[socket.id]; io.emit("online_count", io.engine.clientsCount); });
 });
 
-// --------------------
-// START
-// --------------------
-(async () => {
-  await initStorage();
-
-  const PORT = process.env.PORT || 3000;
-  http.listen(PORT, () => console.log("Server Bafo v7 - Stable & Features (DB OK)"));
-})();
+http.listen(3000, () => console.log("Server Bafo v13 - Turbo Pack & Smart Bot"));

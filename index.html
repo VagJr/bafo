@@ -6,132 +6,83 @@
   <title>Bafo Multiverse</title>
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Titan+One&family=Nunito:wght@400;700&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@900&display=swap');
     
-    :root { 
-        --glass: rgba(15, 15, 25, 0.75); 
-        --border: rgba(255, 255, 255, 0.1);
-        --gold: #f1c40f; 
-        --neon-blue: #00cec9;
-        --neon-purple: #a29bfe;
-    }
-    
-    body { 
-        margin:0; overflow:hidden; 
-        background: radial-gradient(circle at center, #2b0055 0%, #050510 100%);
-        font-family:'Nunito',sans-serif; color:white; 
-        touch-action:none; user-select:none; 
-    }
+    :root { --glass: rgba(15, 15, 25, 0.95); --gold: #f1c40f; --neon-blue: #00cec9; --neon-purple: #a29bfe; }
+    body { margin:0; overflow:hidden; background: radial-gradient(circle at center, #2b0055 0%, #050510 100%); font-family:'Nunito',sans-serif; color:white; touch-action:none; user-select:none; }
     
     #bg-canvas { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 9999; pointer-events: none; }
     #gameCanvas { display:block; position: relative; z-index: 5; }
-
     #ui-layer { position:absolute; top:0; left:0; width:100%; height:100%; pointer-events:none; z-index:10; }
     
     .hud { padding:10px 20px; display:flex; justify-content:space-between; align-items:flex-start; pointer-events:auto; }
+    .badge { background:rgba(0,0,0,0.6); border:1px solid #555; padding:5px 15px; border-radius:30px; font-family:'Titan One'; font-size: 0.9rem; backdrop-filter:blur(5px); }
     
-    .top-bar { display: flex; gap: 10px; align-items: center; }
-    .badge { 
-        background:rgba(0,0,0,0.6); border:1px solid #555; 
-        padding:5px 15px; border-radius:30px; 
-        font-family:'Titan One'; font-size: 0.9rem; text-shadow:0 2px 0 black; 
-        backdrop-filter:blur(5px);
-    }
-    .online-count { color: var(--neon-blue); font-size: 0.8rem; }
+    .screen { position:absolute; top:0; left:0; width:100%; height:100%; background:rgba(5, 5, 10, 0.7); z-index:20; display:none; align-items:center; justify-content:center; pointer-events:auto; backdrop-filter: blur(4px); }
+    .screen.active { display:flex; }
+    .panel { background:var(--glass); padding:20px; border-radius:20px; border:1px solid rgba(255,255,255,0.1); text-align:center; max-width:500px; width:90%; max-height:90vh; display:flex; flex-direction:column; box-shadow: 0 0 30px rgba(162, 155, 254, 0.2); position: relative; overflow: hidden; }
+    .scroll-area { overflow-y:auto; flex:1; margin:10px 0; padding: 5px; }
 
-    .chat-btn { background: rgba(0,0,0,0.6); border: 1px solid var(--neon-purple); border-radius: 50%; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 1.2rem; pointer-events: auto; }
+    .btn { background:linear-gradient(135deg, #a29bfe, #6c5ce7); border:none; padding:12px; width:100%; border-radius:12px; color:white; font-family:'Titan One'; font-size:1rem; margin-top:8px; cursor:pointer; }
+    .btn:active { transform:translateY(2px); }
+    .btn-green { background:linear-gradient(135deg, #2ecc71, #27ae60); }
+    .btn-blue { background:linear-gradient(135deg, #00cec9, #0984e3); }
+    .btn-orange { background:linear-gradient(135deg, #f1c40f, #d35400); }
+    input, select { width:90%; padding:12px; margin:10px 0; border-radius:8px; border:none; background:#333; color:white; text-align:center; }
 
-    .screen { 
-        position:absolute; top:0; left:0; width:100%; height:100%; 
-        background:rgba(5, 5, 10, 0.6); 
-        z-index:20; display:none; align-items:center; justify-content:center; 
-        pointer-events:auto; backdrop-filter: blur(4px); 
-    }
-    .screen.active { display:flex; animation: fadeIn 0.3s ease-out; }
-    @keyframes fadeIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
+    /* BANK UI */
+    .greek-panel { background: radial-gradient(circle at center, #2c3e50 0%, #000000 100%); border: 4px double var(--gold); border-radius: 4px; box-shadow: 0 0 40px rgba(241, 196, 15, 0.2), inset 0 0 60px rgba(0,0,0,0.8); position: relative; padding: 40px 30px; }
+    .greek-panel::before, .greek-panel::after { content: ''; position: absolute; top: 15px; bottom: 15px; width: 6px; background: linear-gradient(180deg, #b8860b, var(--gold), #fff, var(--gold), #b8860b); border-radius: 2px; box-shadow: 0 0 10px var(--gold); }
+    .greek-panel::before { left: 10px; } .greek-panel::after { right: 10px; }
+    .bank-header { font-family: 'Cinzel', serif; font-size: 2.2rem; color: var(--gold); letter-spacing: 5px; text-shadow: 0 2px 10px rgba(241, 196, 15, 0.6); border-bottom: 2px solid var(--gold); margin-bottom: 20px; padding-bottom: 10px; position: relative; }
+    .bank-header::after { content: '▼'; font-size: 0.8rem; position: absolute; bottom: -10px; left: 50%; transform: translateX(-50%); background: #000; padding: 0 10px; }
+    .temple-icon { font-size: 4rem; margin-bottom: 15px; filter: drop-shadow(0 0 15px var(--gold)); animation: floatLogo 3s ease-in-out infinite; }
+    .greek-box { border: 2px solid #555; border-image: linear-gradient(to right, var(--gold), transparent, var(--gold)) 1; background: rgba(0,0,0,0.4); padding: 20px; margin: 15px 0; }
+    .swap-row { display: flex; align-items: center; justify-content: center; gap: 10px; } .swap-row select { width: 100px; font-family:'Cinzel', serif; }
 
-    .panel { 
-        background:var(--glass); padding:25px; border-radius:24px; 
-        border:1px solid var(--border); 
-        text-align:center; max-width:500px; width:90%; max-height:90vh; 
-        display:flex; flex-direction:column; 
-        box-shadow: 0 0 50px rgba(162, 155, 254, 0.15); 
-        position: relative; overflow: hidden;
-    }
-    
-    .panel::after { content: ''; position: absolute; top: -50%; left: -50%; width: 200%; height: 200%; background: radial-gradient(circle, rgba(255,255,255,0.05) 0%, transparent 60%); pointer-events: none; }
-    .scroll-area { overflow-y:auto; flex:1; margin:15px 0; padding: 5px; z-index: 2; }
+    /* CURRENCY HUD */
+    .currency-row { display:flex; justify-content:space-around; background:rgba(0,0,0,0.3); padding:10px; border-radius:10px; margin-bottom:10px; width:100%; box-sizing:border-box;}
+    .curr-item { display:flex; flex-direction:column; align-items:center; }
+    .curr-val { font-size: 1rem; color: #fff; font-weight:bold; }
+    .curr-label { font-size:0.6rem; color:#aaa; text-transform:uppercase; }
 
-    /* BTNS */
-    .btn { background:linear-gradient(135deg, #a29bfe, #6c5ce7); border:none; padding:15px; width:100%; border-radius:16px; color:white; font-family:'Titan One'; font-size:1.1rem; margin-top:10px; cursor:pointer; text-shadow: 0 2px 4px rgba(0,0,0,0.3); box-shadow: 0 5px 0 #4834d4; }
-    .btn:active { transform:translateY(5px); box-shadow:none; }
-    .btn-green { background:linear-gradient(135deg, #2ecc71, #27ae60); box-shadow: 0 5px 0 #16a085; }
-    .btn-orange { background:linear-gradient(135deg, #f1c40f, #d35400); box-shadow: 0 5px 0 #c0392b; }
-    .btn-blue { background:linear-gradient(135deg, #00cec9, #0984e3); box-shadow: 0 5px 0 #2980b9; }
+    /* MIXER */
+    .mixer-row { display:flex; align-items:center; margin:10px 0; }
+    .mixer-row label { width: 80px; text-align:right; margin-right:10px; font-size:0.8rem; }
+    .mixer-row input { flex:1; margin:0; }
+    .mixer-val { width: 40px; text-align:center; font-weight:bold; }
 
-    input { width:90%; padding:15px; margin:10px 0; border-radius:12px; border:2px solid #444; background:rgba(0,0,0,0.5); color:white; text-align:center; font-size: 1rem; outline: none; }
-    
-    /* TOAST */
-    #toast-area { position:absolute; top:100px; width:100%; display:flex; flex-direction:column; align-items:center; pointer-events:none; z-index:100; }
-    .toast { background:rgba(0,0,0,0.9); padding:12px 25px; border-radius:30px; margin-bottom:10px; border: 1px solid var(--gold); color: var(--gold); font-weight: bold; animation:pop 0.3s; }
-    @keyframes pop { from{transform:scale(0);} to{transform:scale(1);} }
+    /* CARDS & GRID */
+    .grid { display:grid; grid-template-columns: repeat(auto-fill, minmax(90px, 1fr)); gap:10px; }
+    .grid-card { aspect-ratio: 2.5/3.5; background-color: #222; background-size: cover; background-position: center; border-radius: 8px; border: 2px solid #555; position: relative; cursor: pointer; }
+    .card-count { position: absolute; top: -5px; right: -5px; background: #00cec9; color: black; border-radius: 50%; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 0.8rem; border: 2px solid white; }
 
-    /* GRID & CARDS */
-    .grid { display:grid; grid-template-columns: repeat(auto-fill, minmax(90px, 1fr)); gap:12px; padding: 5px; }
-    .grid-card {
-        aspect-ratio: 2.5/3.5; background-color: #1a1a1a; background-size: cover; background-position: center;
-        border-radius: 10px; border: 2px solid #555; position: relative; cursor: pointer;
-        box-shadow: 0 4px 8px rgba(0,0,0,0.6);
-    }
-    .grid-card:hover { transform: translateY(-5px); z-index:2; box-shadow: 0 0 15px rgba(255,255,255,0.3); }
-
-    /* COLLECTION SPECIAL */
-    .collection-item { display: flex; flex-direction: column; gap: 5px; }
-    .sell-btn-small { background: #c0392b; border: none; color: white; border-radius: 5px; padding: 5px; font-weight: bold; font-size: 0.7rem; cursor: pointer; width: 100%; }
-
-    /* INSPECTOR (FULLSCREEN 3D) */
-    #card-inspector {
-        position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-        background: rgba(0,0,0,0.9); z-index: 999;
-        display: none; align-items: center; justify-content: center;
-        perspective: 1000px; /* Para o efeito 3D */
-    }
-    #card-inspector.active { display: flex; animation: zoomIn 0.3s; }
-    @keyframes zoomIn { from{transform:scale(0.5); opacity:0;} to{transform:scale(1); opacity:1;} }
-
-    #inspector-img {
-        width: 80vw; height: 70vh; /* QUASE TELA TODA */
-        max-width: 400px; max-height: 560px;
-        background-size: contain; background-repeat: no-repeat; background-position: center;
-        border-radius: 15px;
-        box-shadow: 0 0 50px rgba(255,255,255,0.2);
-        transition: transform 0.1s; /* Movimento suave */
-        transform-style: preserve-3d;
-    }
-    /* Brilho Holográfico no Inspector */
-    #inspector-img::after {
-        content: ''; position: absolute; top:0; left:0; width:100%; height:100%;
-        background: linear-gradient(125deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.1) 40%, rgba(255,255,255,0.4) 50%, rgba(255,255,255,0.1) 60%, rgba(255,255,255,0) 100%);
-        pointer-events: none; border-radius: 15px; mix-blend-mode: overlay;
-    }
-
-    /* CHAT PANEL */
-    #screen-chat .panel { height: 60vh; justify-content: space-between; }
-    #chat-messages { flex: 1; overflow-y: auto; text-align: left; padding: 10px; background: rgba(0,0,0,0.3); border-radius: 10px; margin-bottom: 10px; font-size: 0.9rem; }
-    .chat-input-area { display: flex; gap: 10px; }
-    #chat-input { margin: 0; flex: 1; text-align: left; }
-
-    /* BOOSTER ANIM */
+    /* BOOSTER ANIMATION */
     #booster-display { display:flex; justify-content:center; gap:15px; height:200px; align-items:center; perspective:1000px; }
-    .booster-card { width:120px; height:168px; position: relative; transform-style: preserve-3d; transition: transform 0.8s; opacity: 0; transform: translateY(100px) rotateY(180deg); }
-    .booster-card.reveal { opacity: 1; transform: translateY(0) rotateY(0deg); }
-    .booster-card .front { position: absolute; width: 100%; height: 100%; background-size: cover; border-radius: 10px; backface-visibility: hidden; border: 2px solid gold; transform: rotateY(0deg); }
-    .booster-card .back { position: absolute; width: 100%; height: 100%; background: #333; border-radius: 10px; backface-visibility: hidden; border: 2px solid #555; transform: rotateY(180deg); }
+    .booster-card { width:110px; height:154px; position: relative; transform-style: preserve-3d; opacity:0; cursor: pointer; }
+    .booster-card .front { position: absolute; width: 100%; height: 100%; background-size: cover; border-radius: 8px; backface-visibility: hidden; border: 2px solid gold; box-shadow: 0 0 20px gold; transform: rotateY(0deg); }
+    .booster-card .back { position: absolute; width: 100%; height: 100%; background: #333; border-radius: 8px; backface-visibility: hidden; border: 2px solid #555; transform: rotateY(180deg); }
 
-    /* MARKET */
-    .market-card { display: flex; align-items: center; background: rgba(255,255,255,0.05); border-radius:12px; margin-bottom:8px; padding:8px; border:1px solid #444; }
-    .m-img { width: 50px; height: 70px; background-size: cover; border-radius: 6px; margin-right: 12px; }
-    .m-info { text-align: left; font-size: 0.9rem; flex: 1; }
+    /* CHAT */
+    #chat-messages { height: 150px; overflow-y:auto; background:rgba(0,0,0,0.4); border-radius:8px; padding:5px; text-align:left; font-size:0.8rem; margin-bottom:10px; }
+    #search-timer { display:none; margin-bottom:10px; color:var(--neon-blue); font-family:monospace; animation: pulse 1s infinite; }
+    
+    /* LOGO */
+    .game-logo { margin-bottom: 20px; animation: floatLogo 4s ease-in-out infinite; }
+    .title-bafo { font-family: 'Titan One', cursive; font-size: 4rem; line-height: 0.9; background: linear-gradient(180deg, #fff9c4 0%, #f1c40f 40%, #d35400 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; -webkit-text-stroke: 2px #fff; display: block; }
+    .title-multi { font-family: 'Cinzel', serif; font-weight: 900; font-size: 1.2rem; letter-spacing: 5px; background: linear-gradient(90deg, #a29bfe, #00cec9, #fff, #00cec9, #a29bfe); background-size: 200%; -webkit-background-clip: text; -webkit-text-fill-color: transparent; animation: shimmer 3s linear infinite; display: block; margin-top: -5px; }
+    @keyframes floatLogo { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
+    @keyframes shimmer { to { background-position: 200% center; } }
+    @keyframes pulse { 0%{opacity:0.5} 50%{opacity:1} 100%{opacity:0.5} }
 
+    /* INSPECTOR */
+    #card-inspector { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.95); z-index: 999; display: none; align-items: center; justify-content: center; perspective: 1000px; }
+    #card-inspector.active { display: flex; }
+    #inspector-img { width: 85vw; max-width: 450px; height: 75vh; background-size: contain; background-repeat: no-repeat; background-position: center; border-radius: 15px; box-shadow: 0 0 50px rgba(255,255,255,0.2); transition: transform 0.1s; transform-style: preserve-3d; }
+
+    #toast-area { position:absolute; top:80px; width:100%; display:flex; flex-direction:column; align-items:center; pointer-events:none; z-index:100; }
+    .toast { background:rgba(0,0,0,0.9); padding:10px 20px; border-radius:20px; margin-bottom:10px; border: 1px solid var(--gold); animation:pop 0.3s; }
+    @keyframes pop { from{transform:scale(0);} to{transform:scale(1);} }
   </style>
 </head>
 <body>
@@ -142,58 +93,95 @@
 
 <div id="card-inspector" onclick="window.closeInspector()">
     <div id="inspector-img"></div>
-    <div style="position:absolute; bottom: 50px; color: #aaa; font-size: 0.8rem;">Toque fora para fechar</div>
+    <div style="position:absolute; bottom: 50px; color:#aaa; font-size:0.8rem;">Girar 3D</div>
 </div>
 
 <div id="ui-layer">
   <div class="hud" id="game-hud" style="display:none;">
-    <div class="top-bar">
-        <div id="turn-badge" class="badge">Aguarde...</div>
-        <div class="badge online-count" id="online-counter">Online: 0</div>
-    </div>
-    <div style="display:flex; gap:10px;">
-        <div class="chat-btn" onclick="window.toggleChat()">💬</div>
-        <button class="btn" style="width:auto; padding:8px 20px; margin:0; font-size:0.8rem;" onclick="window.openMenu()">Menu</button>
-    </div>
+    <div id="turn-badge" class="badge">Aguarde...</div>
+    <div class="badge" id="online-counter">Online: 0</div>
+    <button class="btn" style="width:auto; padding:5px 15px; font-size:0.8rem; margin:0;" onclick="window.openMenu()">Menu</button>
   </div>
 </div>
 
 <div id="screen-login" class="screen active">
   <div class="panel">
-    <h1>BAFO MULTIVERSE</h1>
-    <p>Recompensa Diária: 2000 Moedas!</p>
-    <input id="login-user" placeholder="Seu Nome" />
-    <button class="btn" onclick="window.doLogin()">JOGAR</button>
+    <div class="game-logo">
+        <span class="title-bafo">BAFO</span>
+        <span class="title-multi">MULTIVERSE</span>
+    </div>
+    <input id="login-user" placeholder="Nome de Mestre" />
+    <button class="btn" onclick="window.doLogin()">ENTRAR</button>
   </div>
 </div>
 
 <div id="screen-menu" class="screen">
   <div class="panel">
     <h2>BASE</h2>
-    <div style="position: absolute; top: 10px; right: 20px; font-size: 0.8rem; color: var(--neon-blue);" id="menu-online-counter"></div>
-    <div style="display:flex; justify-content:space-around; background:rgba(0,0,0,0.3); padding:15px; border-radius:15px; margin-bottom:15px;">
-      <span>🪙 <b id="coins-display" style="color:var(--gold)">0</b></span>
-      <span>🃏 <b id="cards-display">0</b></span>
+    <div class="currency-row">
+      <div class="curr-item"><span class="curr-val" id="gold-display" style="color:var(--gold)">0</span><span class="curr-label">Gold</span></div>
+      <div class="curr-item"><span class="curr-val" id="mana-display" style="color:var(--neon-blue)">0</span><span class="curr-label">Mana</span></div>
+      <div class="curr-item"><span class="curr-val" id="essence-display" style="color:var(--neon-purple)">0</span><span class="curr-label">Essence</span></div>
+      <div class="curr-item"><span class="curr-val" id="cards-display">0</span><span class="curr-label">Cartas</span></div>
     </div>
-    <div class="scroll-area" style="overflow:visible;">
+    <div class="scroll-area">
         <button class="btn" onclick="window.openBetting()">⚔️ Duelar</button>
         <button class="btn btn-green" onclick="window.openMarket()">🏪 Mercado</button>
-        <button class="btn btn-blue" onclick="window.toggleChat()">💬 Chat Global</button>
+        <button class="btn btn-blue" onclick="window.toggleChat()">💬 Chat</button>
+        <button class="btn btn-orange" style="border: 1px solid var(--gold);" onclick="window.openBank()">🏛️ BANK</button>
         <button class="btn" style="background:#444;" onclick="window.openCollection()">🗂️ Coleção</button>
-        <button class="btn btn-orange" onclick="window.buyBooster()">🎁 Pacote (500)</button>
+        <button class="btn btn-orange" onclick="window.openBoosterMixer()">🎁 Criar Pacote</button>
     </div>
   </div>
+</div>
+
+<div id="screen-bank" class="screen">
+  <div class="panel greek-panel">
+    <div class="temple-icon">🏛️</div>
+    <div class="bank-header">BANCO</div>
+    <div class="greek-box">
+      <div style="font-size:0.85rem; color:#aaa; margin-bottom:10px;">CÂMBIO 1:1</div>
+      <div class="swap-row">
+        <select id="swap-from">
+          <option value="gold">🟡 Ouro</option>
+          <option value="mana">🔵 Mana</option>
+          <option value="essence">💜 Essência</option>
+        </select>
+        <span style="font-size:1.2rem;">➡️</span>
+        <select id="swap-to">
+          <option value="mana">🔵 Mana</option>
+          <option value="essence">💜 Essência</option>
+          <option value="gold">🟡 Ouro</option>
+        </select>
+      </div>
+      <input id="swap-amount" type="number" placeholder="Valor" value="100" />
+      <button class="btn btn-blue" style="font-family:'Cinzel', serif; border:1px solid var(--gold);" onclick="window.performSwap()">TROCAR</button>
+    </div>
+    <button class="btn" style="background:#444; box-shadow:none;" onclick="window.openMenu()">VOLTAR</button>
+  </div>
+</div>
+
+<div id="screen-booster-mix" class="screen">
+    <div class="panel">
+        <h3 style="color:var(--gold)">MULTIVERSE MIXER</h3>
+        <p style="font-size:0.8rem; color:#aaa;">Custo: 500. Ajuste o foco:</p>
+        <div class="mixer-row"><label style="color:var(--gold)">GOLD</label><input type="range" min="0" max="500" id="mix-gold" oninput="window.adjustMixer('gold', this.value)"><span class="mixer-val" id="val-gold">166</span></div>
+        <div class="mixer-row"><label style="color:var(--neon-blue)">MANA</label><input type="range" min="0" max="500" id="mix-mana" oninput="window.adjustMixer('mana', this.value)"><span class="mixer-val" id="val-mana">167</span></div>
+        <div class="mixer-row"><label style="color:var(--neon-purple)">ESSENCE</label><input type="range" min="0" max="500" id="mix-essence" oninput="window.adjustMixer('essence', this.value)"><span class="mixer-val" id="val-essence">167</span></div>
+        <button class="btn btn-green" onclick="window.confirmBoosterBuy()">INVOCAR</button>
+        <button class="btn" style="background:#444;" onclick="window.openMenu()">VOLTAR</button>
+    </div>
 </div>
 
 <div id="screen-chat" class="screen">
     <div class="panel">
         <h3 style="color:var(--neon-blue)">CHAT GLOBAL</h3>
         <div id="chat-messages"></div>
-        <div class="chat-input-area">
-            <input id="chat-input" placeholder="Digite algo..." />
-            <button class="btn btn-blue" style="width:auto; margin:10px 0;" onclick="window.sendChat()">➤</button>
+        <div style="display:flex; gap:5px;">
+            <input id="chat-input" placeholder="Mensagem..." style="margin:0; text-align:left;">
+            <button class="btn" style="width:auto; margin:0;" onclick="window.sendChat()">➤</button>
         </div>
-        <button class="btn" style="background:#444; margin-top:5px;" onclick="window.toggleChat()">FECHAR</button>
+        <button class="btn" style="background:#444;" onclick="window.toggleChat()">FECHAR</button>
     </div>
 </div>
 
@@ -201,16 +189,56 @@
   <div class="panel">
     <h2 style="color:gold;">PACOTE ABERTO!</h2>
     <div id="booster-display"></div>
-    <button class="btn" style="margin-top:20px;" onclick="window.openMenu()">GUARDAR</button>
+    <button class="btn" onclick="window.openMenu()">GUARDAR</button>
   </div>
+</div>
+
+<div id="screen-ranking" class="screen">
+    <div class="panel">
+        <h3>RANKING GLOBAL</h3>
+        <div class="scroll-area" id="ranking-list"></div>
+        <button class="btn" style="background:#444;" onclick="window.openMenu()">VOLTAR</button>
+    </div>
+</div>
+
+<div id="screen-trade-lobby" class="screen">
+    <div class="panel">
+        <h3>SALA DE TROCAS</h3>
+        <button class="btn" onclick="window.createTrade()">CRIAR SALA</button>
+        <button class="btn btn-blue" onclick="window.joinTrade()">ENTRAR COM ID</button>
+        <button class="btn" style="background:#444;" onclick="window.openMenu()">VOLTAR</button>
+    </div>
+</div>
+
+<div id="screen-trade-room" class="screen">
+    <div class="panel">
+        <h3>NEGOCIAÇÃO</h3>
+        <div style="font-size:0.8rem; color:#aaa;">ID: <span id="trade-id-display">...</span></div>
+        <div id="trade-status" style="margin-top:5px; color:gold;">Aguardando...</div>
+        <div class="trade-table">
+            <div id="my-offer-slot" class="trade-slot">Sua Oferta</div>
+            <div style="font-size:20px;">⇄</div>
+            <div id="their-offer-slot" class="trade-slot">Oponente</div>
+        </div>
+        <div style="text-align:left; font-size:0.8rem;">Selecione oferta:</div>
+        <div class="scroll-area" style="height:150px; background:rgba(0,0,0,0.2);">
+            <div class="grid" id="trade-collection"></div>
+        </div>
+        <div style="display:flex; gap:10px;">
+            <button class="btn btn-green" onclick="window.confirmTrade()">CONFIRMAR</button>
+            <button class="btn" style="background:#444;" onclick="window.openMenu()">SAIR</button>
+        </div>
+    </div>
 </div>
 
 <div id="screen-bet" class="screen">
   <div class="panel">
     <h3>APOSTAS</h3>
+    <div id="search-timer">Buscando: 0s</div>
+    <p style="font-size:0.8rem; color:#aaa;">Toque para adicionar (x1, x2...)</p>
     <div class="scroll-area"><div class="grid" id="bet-grid"></div></div>
-    <div style="display:flex; gap:10px; width:100%;">
-        <button class="btn" onclick="window.createMatch()">DUELAR</button>
+    <div style="display:flex; gap:10px;">
+        <button class="btn" onclick="window.createMatch()">JOGAR</button>
         <button class="btn" style="background:#444;" onclick="window.openMenu()">VOLTAR</button>
     </div>
   </div>
@@ -218,8 +246,8 @@
 
 <div id="screen-market" class="screen">
   <div class="panel">
-    <h3>MERCADO</h3>
-    <div class="scroll-area"><div class="grid" id="market-grid" style="display:block;"></div></div>
+    <h3>MERCADO (GOLD)</h3>
+    <div class="scroll-area"><div class="grid" id="market-grid"></div></div>
     <button class="btn" style="background:#444;" onclick="window.openMenu()">VOLTAR</button>
   </div>
 </div>
@@ -227,7 +255,6 @@
 <div id="screen-collection" class="screen">
   <div class="panel">
     <h3>COLEÇÃO</h3>
-    <p style="font-size:0.7rem; color:#aaa;">Clique na imagem para ampliar em 3D</p>
     <div class="scroll-area"><div class="grid" id="collection-grid"></div></div>
     <button class="btn" style="background:#444;" onclick="window.openMenu()">VOLTAR</button>
   </div>
@@ -235,25 +262,66 @@
 
 <script src="/socket.io/socket.io.js"></script>
 <script src="game.js"></script>
-
 <script>
-    const bgCanvas = document.getElementById('bg-canvas');
-    const bgCtx = bgCanvas.getContext('2d');
-    let bgW, bgH; let spores = []; const mouse = { x: null, y: null, radius: 150 };
-    window.addEventListener('resize', resizeBg);
-    window.addEventListener('mousemove', (e) => { mouse.x = e.x; mouse.y = e.y; });
-    window.addEventListener('touchmove', (e) => { mouse.x = e.touches[0].clientX; mouse.y = e.touches[0].clientY; });
-    window.addEventListener('touchend', () => { mouse.x = null; mouse.y = null; });
-    function resizeBg() { bgW = window.innerWidth; bgH = window.innerHeight; bgCanvas.width = bgW; bgCanvas.height = bgH; initSpores(); }
-    class Spore {
-        constructor() { this.init(); }
-        init() { this.x = Math.random() * bgW; this.y = Math.random() * bgH; this.size = Math.random() * 1.5 + 0.5; this.baseX = this.x; this.baseY = this.y; this.density = (Math.random() * 30) + 1; this.speedY = Math.random() * 1 + 0.2; this.alpha = Math.random(); this.alphaSpeed = Math.random() * 0.02 + 0.005; this.color = Math.random() > 0.5 ? '#ffffff' : '#00cec9'; }
-        draw() { bgCtx.globalAlpha = this.alpha; bgCtx.fillStyle = this.color; bgCtx.beginPath(); bgCtx.arc(this.x, this.y, this.size, 0, Math.PI * 2); bgCtx.shadowBlur = 8; bgCtx.shadowColor = this.color; bgCtx.fill(); bgCtx.globalAlpha = 1; bgCtx.shadowBlur = 0; }
-        update() { this.alpha += this.alphaSpeed; if(this.alpha > 1 || this.alpha < 0.2) this.alphaSpeed = -this.alphaSpeed; this.y -= this.speedY; if(this.y < -10) this.y = bgH + 10; if(mouse.x != null) { let dx = mouse.x - this.x; let dy = mouse.y - this.y; let distance = Math.sqrt(dx*dx + dy*dy); if (distance < mouse.radius) { const f = (mouse.radius - distance) / mouse.radius; this.x -= (dx / distance) * f * this.density; this.y -= (dy / distance) * f * this.density; } else if (this.x !== this.baseX) { this.x -= (this.x - this.baseX)/20; } } }
+    const bgCvs = document.getElementById('bg-canvas'); const bgCtx = bgCvs.getContext('2d');
+    let bgW, bgH, spores=[];
+    let sporeMode = 'NORMAL'; // NORMAL, GATHER, EXPLODE
+
+    window.addEventListener('resize', rsz); rsz();
+    function rsz(){ bgW=window.innerWidth; bgH=window.innerHeight; bgCvs.width=bgW; bgCvs.height=bgH; initS(); }
+    
+    function initS(){ 
+        spores=[]; 
+        for(let i=0; i<150; i++) spores.push({
+            x:Math.random()*bgW, 
+            y:Math.random()*bgH, 
+            s:Math.random()*2, 
+            vy:Math.random()*0.5+0.1,
+            vx:0
+        }); 
     }
-    function initSpores() { spores = []; for(let i=0; i<150; i++) spores.push(new Spore()); }
-    function animateBg() { bgCtx.clearRect(0, 0, bgW, bgH); for(let i=0; i<spores.length; i++) { spores[i].draw(); spores[i].update(); } requestAnimationFrame(animateBg); }
-    resizeBg(); animateBg();
+
+    // CONTROLE EXTERNO PARA LOADING
+    window.sporeGather = () => { sporeMode = 'GATHER'; };
+    window.sporeExplode = () => { sporeMode = 'EXPLODE'; setTimeout(() => sporeMode = 'NORMAL', 1000); };
+
+    function anim(){ 
+        bgCtx.clearRect(0,0,bgW,bgH); 
+        
+        spores.forEach(p=>{ 
+            if(sporeMode === 'NORMAL') {
+                p.y-=p.vy; 
+                p.x += (Math.random()-0.5)*0.2;
+                if(p.y<0) p.y=bgH; 
+            }
+            else if(sporeMode === 'GATHER') {
+                // Vai para o centro
+                let dx = (bgW/2) - p.x;
+                let dy = (bgH/2) - p.y;
+                p.x += dx * 0.05 + (Math.random()-0.5)*10; // Vibrar
+                p.y += dy * 0.05 + (Math.random()-0.5)*10;
+            }
+            else if(sporeMode === 'EXPLODE') {
+                // Sai do centro
+                let dx = p.x - (bgW/2);
+                let dy = p.y - (bgH/2);
+                // Se estiver muito perto do centro (pós gather), dá um push aleatório
+                if(Math.abs(dx) < 10) dx = (Math.random()-0.5)*100;
+                if(Math.abs(dy) < 10) dy = (Math.random()-0.5)*100;
+                
+                p.x += dx * 0.2;
+                p.y += dy * 0.2;
+            }
+
+            bgCtx.fillStyle='#00cec9'; 
+            bgCtx.globalAlpha=Math.random(); 
+            bgCtx.beginPath(); 
+            bgCtx.arc(p.x,p.y,p.s,0,Math.PI*2); 
+            bgCtx.fill(); 
+        }); 
+        requestAnimationFrame(anim); 
+    } 
+    anim();
 </script>
 </body>
 </html>
