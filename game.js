@@ -20,13 +20,6 @@ const camera = { x: 0, y: 0, zoom: 1 };
 const imgCache = {};
 const BOT_ID = "BOT_ID";
 
-// HELPER: Rarity Diamonds
-const RARITY_HTML = {
-    common: '<span style="color:#bdc3c7">♦</span>',
-    rare: '<span style="color:#0984e3">♦♦</span>',
-    epic: '<span style="color:#6c5ce7">♦♦♦</span>',
-    legend: '<span style="color:#f1c40f; text-shadow:0 0 5px gold;">♦♦♦♦</span>'
-};
 const RARITY_COLORS = { common: '#bdc3c7', rare: '#0984e3', epic: '#6c5ce7', legend: '#f1c40f' };
 
 function getCardImage(url) {
@@ -207,6 +200,7 @@ function spawnFlyingCard(cardObj, winnerId) {
     flyingCards.push({ x: cardObj.x, y: cardObj.y, image: cardObj.data.image, tx: width/2, ty: targetY, scale: 1 }); 
 }
 
+socket.on('online_count', count => { document.getElementById('online-counter').innerText = `Online: ${count}`; });
 socket.on('login_success', u=>{ myUser=u; document.querySelectorAll('.active').forEach(e=>e.classList.remove('active')); document.getElementById('screen-menu').classList.add('active'); updateHUD(); });
 socket.on('update_profile', u=>{ myUser=u; updateHUD(); if(document.getElementById('screen-collection').classList.contains('active')) window.renderCollection(); }); 
 socket.on('notification', m => notify(m));
@@ -256,20 +250,13 @@ socket.on('game_over', d => {
 });
 
 
-function checkBotMove() {
-    if (currentRoom.currentTurn === BOT_ID) { socket.emit("bot_play_trigger", currentRoom.roomId); }
-}
+function checkBotMove() { if (currentRoom.currentTurn === BOT_ID) { socket.emit("bot_play_trigger", currentRoom.roomId); } }
 socket.on('bot_should_play', (d) => {
     setTimeout(() => {
         const targets = physicsCards.filter(c => !c.dead);
         if(targets.length > 0) {
             const target = targets[Math.floor(Math.random()*targets.length)];
-            socket.emit("action_blow", {
-                roomId: currentRoom.roomId, turnId: d.turnId,
-                x: target.x + (Math.random()-0.5)*20,
-                y: target.y + (Math.random()-0.5)*20,
-                pressure: 0.8 + Math.random()*0.2
-            });
+            socket.emit("action_blow", { roomId: currentRoom.roomId, turnId: d.turnId, x: target.x + (Math.random()-0.5)*20, y: target.y + (Math.random()-0.5)*20, pressure: 0.8 + Math.random()*0.2 });
         }
     }, 1000);
 });
@@ -280,124 +267,101 @@ function updateTurnBadge() {
     else { badge.innerText = `${opponentName}...`; badge.style.color = "#aaa"; }
 }
 
-// --- NOVOS RENDERIZADORES DE GRID (VISUAL ATUALIZADO) ---
+// --- CHAT LOGIC ---
+const chatInput = document.getElementById('chat-input');
+const chatMsgs = document.getElementById('chat-messages');
+window.toggleChat = () => {
+    const screen = document.getElementById('screen-chat');
+    if(screen.classList.contains('active')) screen.classList.remove('active');
+    else screen.classList.add('active');
+};
+window.sendChat = () => {
+    const txt = chatInput.value;
+    if(txt) { socket.emit('chat_send', txt); chatInput.value = ''; }
+};
+socket.on('chat_message', data => {
+    const div = document.createElement('div');
+    div.style.marginBottom = "5px";
+    div.innerHTML = `<b style="color:var(--neon-purple)">${data.user}:</b> ${data.text}`;
+    chatMsgs.appendChild(div);
+    chatMsgs.scrollTop = chatMsgs.scrollHeight;
+});
+
+// --- COLLECTION (SELL BUTTON & 3D INSPECTOR) ---
+window.renderCollection = () => {
+    const g = document.getElementById('collection-grid'); g.innerHTML = '';
+    myUser.collection.forEach(c => {
+        const div = document.createElement('div');
+        div.className = 'collection-item'; // Container for layout
+        
+        // A carta em si (clicável para inspetor)
+        const cardImg = document.createElement('div');
+        cardImg.className = 'grid-card';
+        cardImg.style.backgroundImage = `url('${c.image}')`;
+        cardImg.onclick = () => window.inspectCard(c.image);
+        
+        // Botão de vender separado
+        const btnSell = document.createElement('button');
+        btnSell.className = 'sell-btn-small';
+        btnSell.innerText = "VENDER";
+        btnSell.onclick = () => window.sellCard(c.uid);
+
+        div.appendChild(cardImg);
+        div.appendChild(btnSell);
+        g.appendChild(div);
+    });
+};
+
+// 3D INSPECTOR LOGIC
+const inspector = document.getElementById('card-inspector');
+const inspectImg = document.getElementById('inspector-img');
+
+window.inspectCard = (url) => {
+    inspectImg.style.backgroundImage = `url('${url}')`;
+    inspector.classList.add('active');
+};
+window.closeInspector = () => inspector.classList.remove('active');
+
+// 3D Tilt Logic
+inspector.addEventListener('mousemove', (e) => {
+    const { innerWidth, innerHeight } = window;
+    const x = (e.clientX - innerWidth / 2) / 20; // Sensibilidade
+    const y = (e.clientY - innerHeight / 2) / 20;
+    inspectImg.style.transform = `rotateY(${x}deg) rotateX(${-y}deg)`;
+});
+inspector.addEventListener('touchmove', (e) => {
+    const { innerWidth, innerHeight } = window;
+    const x = (e.touches[0].clientX - innerWidth / 2) / 20;
+    const y = (e.touches[0].clientY - innerHeight / 2) / 20;
+    inspectImg.style.transform = `rotateY(${x}deg) rotateX(${-y}deg)`;
+});
+
 let marketData = [];
 socket.on('market_update', d => { marketData = d; if(document.getElementById('screen-market').classList.contains('active')) window.renderMarket(); });
-
-function createCardElement(c, onClickStr, price) {
-    const rarityIcon = RARITY_HTML[c.rarity] || RARITY_HTML['common'];
-    const borderCol = RARITY_COLORS[c.rarity] || '#888';
-    
-    // Grid Item
-    const div = document.createElement('div');
-    div.className = 'grid-card';
-    div.style.backgroundImage = `url('${c.image}')`;
-    div.style.borderColor = borderCol;
-    div.onclick = () => eval(onClickStr); // Simplificação pro exemplo
-
-    // Overlay info
-    div.innerHTML = `
-        <div class="card-overlay">
-            <div style="font-size:0.8rem; font-weight:bold; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${c.name}</div>
-            <div style="display:flex; justify-content:space-between; margin-top:2px;">
-                <span>${rarityIcon}</span>
-                ${price ? `<span style="color:gold; font-weight:bold;">💰${price}</span>` : ''}
-            </div>
-        </div>
-    `;
-    return div;
-}
-
 window.renderMarket = () => {
     const g = document.getElementById('market-grid'); g.innerHTML = '';
     marketData.forEach(m => {
         if(m.seller === myUser.username) return;
-        // Passa o listingId no onclick
-        const el = createCardElement(m.card, `if(confirm('Comprar?')) socket.emit('market_buy', '${m.listingId}')`, m.price);
-        g.appendChild(el);
+        const d = document.createElement('div'); d.className='market-card';
+        d.innerHTML = `<div class="m-img" style="background-image:url('${m.card.image}');"></div>
+                       <div class="m-info"><b>${m.card.name}</b><br><small>${m.seller}</small><br><span style="color:gold">${m.price}</span></div>`;
+        d.onclick = () => { if(confirm(`Comprar?`)) socket.emit('market_buy', m.listingId); };
+        g.appendChild(d);
     });
 };
-
-window.renderCollection = () => {
-    const g = document.getElementById('collection-grid'); g.innerHTML = '';
-    myUser.collection.forEach(c => {
-        const el = createCardElement(c, `window.sellCard('${c.uid}')`);
-        g.appendChild(el);
-    });
-};
-
-// TRADE UI
-let currentTradeId = null;
-window.openTrading = () => { document.querySelectorAll('.active').forEach(e=>e.classList.remove('active')); document.getElementById('screen-trade-lobby').classList.add('active'); };
-window.createTrade = () => { socket.emit('trade_create'); };
-window.joinTrade = () => { const tid = prompt("ID da Sala:"); if(tid) socket.emit('trade_join', tid); };
-socket.on('trade_created', tid => enterTradeRoom(tid));
-socket.on('trade_joined', data => { enterTradeRoom(currentTradeId); document.getElementById('trade-status').innerText = `Negociando: ${data.p1} vs ${data.p2}`; });
-
-function enterTradeRoom(tid) {
-    currentTradeId = tid;
-    document.querySelectorAll('.active').forEach(e=>e.classList.remove('active')); document.getElementById('screen-trade-room').classList.add('active');
-    document.getElementById('trade-id-display').innerText = tid;
-    renderMyTradeCollection();
-}
-
-function renderMyTradeCollection() {
-    const g = document.getElementById('trade-collection'); g.innerHTML = '';
-    myUser.collection.forEach(c => {
-        const el = createCardElement(c, `socket.emit('trade_offer', { tradeId: '${currentTradeId}', cardUID: '${c.uid}' })`);
-        g.appendChild(el);
-    });
-}
-
-socket.on('trade_updated', data => {
-    const mySlot = document.getElementById('my-offer-slot');
-    const theirSlot = document.getElementById('their-offer-slot');
-    
-    // Lógica simplificada de visualização: se eu sou dono da offer1, offer1 é minha.
-    let myOffer = null, theirOffer = null;
-    if(data.offer1 && data.offer1.originalOwner === myUser.username) { myOffer = data.offer1; theirOffer = data.offer2; }
-    else if (data.offer2 && data.offer2.originalOwner === myUser.username) { myOffer = data.offer2; theirOffer = data.offer1; }
-    else if (data.offer1) theirOffer = data.offer1; // Entrando agora
-
-    updateTradeSlot(mySlot, myOffer);
-    updateTradeSlot(theirSlot, theirOffer);
-});
-
-function updateTradeSlot(div, card) {
-    if(card) {
-        div.style.backgroundImage = `url('${card.image}')`;
-        div.innerHTML = `<div style="margin-top:auto; background:rgba(0,0,0,0.7); width:100%; font-size:10px;">${card.name}</div>`;
-        div.style.border = `2px solid ${RARITY_COLORS[card.rarity]}`;
-    } else {
-        div.style.backgroundImage = ''; div.innerHTML = 'Vazio'; div.style.border = '2px dashed #666';
-    }
-}
-socket.on('trade_completed', () => { notify("Troca realizada!"); setTimeout(window.openMenu, 2000); });
-window.confirmTrade = () => socket.emit('trade_confirm', currentTradeId);
 
 window.doLogin = () => { const u=document.getElementById('login-user').value; if(u) socket.emit('login',{username:u}); };
 window.buyBooster = () => socket.emit('buy_booster');
-// Aposta usa o mesmo visual grid agora
 window.openBetting = () => { 
     const g=document.getElementById('bet-grid'); g.innerHTML=''; window.selectedBet=[];
     myUser.collection.forEach(c => {
-        const el = createCardElement(c, `toggleBet('${c.uid}', this)`);
-        g.appendChild(el);
+        const d=document.createElement('div'); d.className='grid-card'; d.style.backgroundImage=`url('${c.image}')`;
+        d.onclick=()=>{ if(window.selectedBet.includes(c.uid)){ window.selectedBet=window.selectedBet.filter(i=>i!==c.uid); d.style.borderColor='#555';} else { if(window.selectedBet.length<5) {window.selectedBet.push(c.uid); d.style.borderColor='#00cec9';} } };
+        g.appendChild(d);
     });
     document.querySelectorAll('.active').forEach(e=>e.classList.remove('active')); document.getElementById('screen-bet').classList.add('active');
 };
-window.toggleBet = (uid, el) => {
-    if(window.selectedBet.includes(uid)) { 
-        window.selectedBet = window.selectedBet.filter(i=>i!==uid); 
-        el.style.transform = 'scale(1)'; el.style.boxShadow = 'none';
-    } else { 
-        if(window.selectedBet.length<5) { 
-            window.selectedBet.push(uid); 
-            el.style.transform = 'scale(0.9)'; el.style.boxShadow = '0 0 15px #00cec9'; 
-        } 
-    }
-};
-window.createMatch = () => { if(![1,3,5].includes(window.selectedBet.length)) return notify("Escolha 1, 3 ou 5!"); socket.emit('create_match', window.selectedBet); };
+window.createMatch = () => { if(![1,3,5].includes(window.selectedBet.length)) return notify("Escolha 1, 3 ou 5 cartas!"); socket.emit('create_match', window.selectedBet); };
 window.openMarket = () => { document.querySelectorAll('.active').forEach(e=>e.classList.remove('active')); document.getElementById('screen-market').classList.add('active'); window.renderMarket(); };
 window.openCollection = () => { document.querySelectorAll('.active').forEach(e=>e.classList.remove('active')); document.getElementById('screen-collection').classList.add('active'); window.renderCollection(); };
 window.sellCard = (uid) => { const p = prompt("Valor:"); if(p) socket.emit('market_sell', { cardUID: uid, price: parseInt(p) }); window.openMenu(); };

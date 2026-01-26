@@ -22,27 +22,23 @@
         touch-action:none; user-select:none; 
     }
     
-    /* CANVAS MÁGICO (AGORA POR CIMA DE TUDO) */
-    #bg-canvas {
-        position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-        z-index: 9999; /* Fica na frente de todas as telas */
-        pointer-events: none; /* IMPORTANTE: Permite clicar nos botões através das partículas */
-    }
+    #bg-canvas { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 9999; pointer-events: none; }
+    #gameCanvas { display:block; position: relative; z-index: 5; }
 
-    /* CANVAS DO JOGO (BAFO) */
-    #gameCanvas { 
-        display:block; position: relative; z-index: 5; 
-    }
-
-    /* --- UI GERAL --- */
     #ui-layer { position:absolute; top:0; left:0; width:100%; height:100%; pointer-events:none; z-index:10; }
-    .hud { padding:20px; display:flex; justify-content:space-between; pointer-events:auto; }
+    
+    .hud { padding:10px 20px; display:flex; justify-content:space-between; align-items:flex-start; pointer-events:auto; }
+    
+    .top-bar { display: flex; gap: 10px; align-items: center; }
     .badge { 
         background:rgba(0,0,0,0.6); border:1px solid #555; 
-        padding:10px 20px; border-radius:30px; 
-        font-family:'Titan One'; text-shadow:0 2px 0 black; 
-        backdrop-filter:blur(5px); box-shadow: 0 0 15px rgba(0,0,0,0.5);
+        padding:5px 15px; border-radius:30px; 
+        font-family:'Titan One'; font-size: 0.9rem; text-shadow:0 2px 0 black; 
+        backdrop-filter:blur(5px);
     }
+    .online-count { color: var(--neon-blue); font-size: 0.8rem; }
+
+    .chat-btn { background: rgba(0,0,0,0.6); border: 1px solid var(--neon-purple); border-radius: 50%; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 1.2rem; pointer-events: auto; }
 
     .screen { 
         position:absolute; top:0; left:0; width:100%; height:100%; 
@@ -51,7 +47,6 @@
         pointer-events:auto; backdrop-filter: blur(4px); 
     }
     .screen.active { display:flex; animation: fadeIn 0.3s ease-out; }
-
     @keyframes fadeIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
 
     .panel { 
@@ -63,245 +58,178 @@
         position: relative; overflow: hidden;
     }
     
-    .panel::after {
-        content: ''; position: absolute; top: -50%; left: -50%; width: 200%; height: 200%;
-        background: radial-gradient(circle, rgba(255,255,255,0.05) 0%, transparent 60%);
-        pointer-events: none;
-    }
-
+    .panel::after { content: ''; position: absolute; top: -50%; left: -50%; width: 200%; height: 200%; background: radial-gradient(circle, rgba(255,255,255,0.05) 0%, transparent 60%); pointer-events: none; }
     .scroll-area { overflow-y:auto; flex:1; margin:15px 0; padding: 5px; z-index: 2; }
 
-    /* BOTÕES */
-    .btn { 
-        background:linear-gradient(135deg, #a29bfe, #6c5ce7); border:none; padding:15px; width:100%; 
-        border-radius:16px; color:white; font-family:'Titan One'; font-size:1.1rem; margin-top:10px; 
-        cursor:pointer; text-shadow: 0 2px 4px rgba(0,0,0,0.3); 
-        transition: transform 0.1s, box-shadow 0.2s;
-        box-shadow: 0 5px 0 #4834d4, 0 10px 20px rgba(0,0,0,0.3);
-        position: relative; overflow: hidden;
-    }
-    .btn::before {
-        content:''; position: absolute; top:0; left:0; width:100%; height:100%;
-        background: linear-gradient(rgba(255,255,255,0.2), transparent);
-    }
-    .btn:active { transform:translateY(5px); box-shadow: 0 0 0 #4834d4; }
-    
-    .btn-green { background:linear-gradient(135deg, #2ecc71, #27ae60); box-shadow: 0 5px 0 #16a085, 0 10px 20px rgba(0,0,0,0.3); }
-    .btn-green:active { box-shadow: 0 0 0 #16a085; }
-    
-    .btn-orange { background:linear-gradient(135deg, #f1c40f, #d35400); box-shadow: 0 5px 0 #c0392b, 0 10px 20px rgba(0,0,0,0.3); }
-    .btn-orange:active { box-shadow: 0 0 0 #c0392b; }
-    
-    .btn-blue { background:linear-gradient(135deg, #00cec9, #0984e3); box-shadow: 0 5px 0 #2980b9, 0 10px 20px rgba(0,0,0,0.3); }
-    .btn-blue:active { box-shadow: 0 0 0 #2980b9; }
+    /* BTNS */
+    .btn { background:linear-gradient(135deg, #a29bfe, #6c5ce7); border:none; padding:15px; width:100%; border-radius:16px; color:white; font-family:'Titan One'; font-size:1.1rem; margin-top:10px; cursor:pointer; text-shadow: 0 2px 4px rgba(0,0,0,0.3); box-shadow: 0 5px 0 #4834d4; }
+    .btn:active { transform:translateY(5px); box-shadow:none; }
+    .btn-green { background:linear-gradient(135deg, #2ecc71, #27ae60); box-shadow: 0 5px 0 #16a085; }
+    .btn-orange { background:linear-gradient(135deg, #f1c40f, #d35400); box-shadow: 0 5px 0 #c0392b; }
+    .btn-blue { background:linear-gradient(135deg, #00cec9, #0984e3); box-shadow: 0 5px 0 #2980b9; }
 
-    input { 
-        width:90%; padding:15px; margin:10px 0; border-radius:12px; border:2px solid #444; 
-        background:rgba(0,0,0,0.5); color:white; text-align:center; font-size: 1rem; outline: none;
-        transition: 0.3s;
-    }
-    input:focus { border-color: var(--neon-purple); box-shadow: 0 0 15px rgba(162, 155, 254, 0.3); }
-
+    input { width:90%; padding:15px; margin:10px 0; border-radius:12px; border:2px solid #444; background:rgba(0,0,0,0.5); color:white; text-align:center; font-size: 1rem; outline: none; }
+    
     /* TOAST */
     #toast-area { position:absolute; top:100px; width:100%; display:flex; flex-direction:column; align-items:center; pointer-events:none; z-index:100; }
-    .toast { 
-        background:rgba(0,0,0,0.9); padding:12px 25px; border-radius:30px; margin-bottom:10px; 
-        border: 1px solid var(--gold); color: var(--gold); font-weight: bold;
-        animation:pop 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); 
-        box-shadow: 0 0 20px rgba(241, 196, 15, 0.3);
-    }
+    .toast { background:rgba(0,0,0,0.9); padding:12px 25px; border-radius:30px; margin-bottom:10px; border: 1px solid var(--gold); color: var(--gold); font-weight: bold; animation:pop 0.3s; }
     @keyframes pop { from{transform:scale(0);} to{transform:scale(1);} }
 
-    /* GRID VISUAL DE CARTAS */
-    .grid { 
-        display:grid; 
-        grid-template-columns: repeat(auto-fill, minmax(90px, 1fr)); 
-        gap:12px; padding: 5px;
-    }
-    
+    /* GRID & CARDS */
+    .grid { display:grid; grid-template-columns: repeat(auto-fill, minmax(90px, 1fr)); gap:12px; padding: 5px; }
     .grid-card {
-        aspect-ratio: 2.5/3.5;
-        background-color: #1a1a1a;
-        background-size: cover; background-position: center;
-        border-radius: 10px;
-        border: 2px solid #555;
-        position: relative; cursor: pointer;
-        transition: transform 0.2s, box-shadow 0.2s;
+        aspect-ratio: 2.5/3.5; background-color: #1a1a1a; background-size: cover; background-position: center;
+        border-radius: 10px; border: 2px solid #555; position: relative; cursor: pointer;
         box-shadow: 0 4px 8px rgba(0,0,0,0.6);
-        overflow: hidden;
     }
-    .grid-card:hover { transform: translateY(-5px) scale(1.05); z-index:2; box-shadow: 0 0 15px rgba(255,255,255,0.3); }
-    
-    .card-overlay {
-        position: absolute; bottom: 0; left: 0; width: 100%;
-        background: linear-gradient(transparent, rgba(0,0,0,0.9));
-        color: white; padding: 6px 4px; box-sizing: border-box;
-        font-size: 0.75rem; text-shadow: 0 1px 2px black;
+    .grid-card:hover { transform: translateY(-5px); z-index:2; box-shadow: 0 0 15px rgba(255,255,255,0.3); }
+
+    /* COLLECTION SPECIAL */
+    .collection-item { display: flex; flex-direction: column; gap: 5px; }
+    .sell-btn-small { background: #c0392b; border: none; color: white; border-radius: 5px; padding: 5px; font-weight: bold; font-size: 0.7rem; cursor: pointer; width: 100%; }
+
+    /* INSPECTOR (FULLSCREEN 3D) */
+    #card-inspector {
+        position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+        background: rgba(0,0,0,0.9); z-index: 999;
+        display: none; align-items: center; justify-content: center;
+        perspective: 1000px; /* Para o efeito 3D */
+    }
+    #card-inspector.active { display: flex; animation: zoomIn 0.3s; }
+    @keyframes zoomIn { from{transform:scale(0.5); opacity:0;} to{transform:scale(1); opacity:1;} }
+
+    #inspector-img {
+        width: 80vw; height: 70vh; /* QUASE TELA TODA */
+        max-width: 400px; max-height: 560px;
+        background-size: contain; background-repeat: no-repeat; background-position: center;
+        border-radius: 15px;
+        box-shadow: 0 0 50px rgba(255,255,255,0.2);
+        transition: transform 0.1s; /* Movimento suave */
+        transform-style: preserve-3d;
+    }
+    /* Brilho Holográfico no Inspector */
+    #inspector-img::after {
+        content: ''; position: absolute; top:0; left:0; width:100%; height:100%;
+        background: linear-gradient(125deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.1) 40%, rgba(255,255,255,0.4) 50%, rgba(255,255,255,0.1) 60%, rgba(255,255,255,0) 100%);
+        pointer-events: none; border-radius: 15px; mix-blend-mode: overlay;
     }
 
-    /* LIST ITEMS */
-    .market-card, .collection-card { 
-        display: flex; align-items: center;
-        background: rgba(255,255,255,0.05); border-radius:12px; margin-bottom:8px; padding:8px; 
-        border:1px solid rgba(255,255,255,0.1); transition: 0.2s;
-    }
-    .market-card:hover { background: rgba(255,255,255,0.1); transform: translateX(5px); }
-    
-    .m-img, .collection-img { 
-        width: 50px; height: 70px; background-color: #000;
-        background-size: cover; background-position: center; 
-        border-radius: 6px; margin-right: 12px; flex-shrink: 0;
-        box-shadow: 0 2px 5px black;
-    }
-    .m-info, .collection-top { flex: 1; text-align: left; font-size: 0.9rem; }
+    /* CHAT PANEL */
+    #screen-chat .panel { height: 60vh; justify-content: space-between; }
+    #chat-messages { flex: 1; overflow-y: auto; text-align: left; padding: 10px; background: rgba(0,0,0,0.3); border-radius: 10px; margin-bottom: 10px; font-size: 0.9rem; }
+    .chat-input-area { display: flex; gap: 10px; }
+    #chat-input { margin: 0; flex: 1; text-align: left; }
 
-    /* BOOSTER ANIMATION */
+    /* BOOSTER ANIM */
     #booster-display { display:flex; justify-content:center; gap:15px; height:200px; align-items:center; perspective:1000px; }
-    .booster-card { 
-        width:120px; height:168px; position: relative; 
-        transform-style: preserve-3d; transition: transform 0.8s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-        opacity: 0; transform: translateY(100px) rotateY(180deg);
-    }
+    .booster-card { width:120px; height:168px; position: relative; transform-style: preserve-3d; transition: transform 0.8s; opacity: 0; transform: translateY(100px) rotateY(180deg); }
     .booster-card.reveal { opacity: 1; transform: translateY(0) rotateY(0deg); }
-    .booster-card .front, .booster-card .back { position: absolute; width: 100%; height: 100%; backface-visibility: hidden; border-radius: 10px; }
-    .booster-card .front { background-size: cover; background-position: center; border: 2px solid gold; box-shadow: 0 0 25px rgba(255,215,0,0.5); transform: rotateY(0deg); }
-    .booster-card .back { background: linear-gradient(135deg, #111, #333); border: 2px solid #555; transform: rotateY(180deg); display:flex; align-items:center; justify-content:center; font-size:2rem;}
-    .booster-card .back::after { content:'?'; color:#555; }
+    .booster-card .front { position: absolute; width: 100%; height: 100%; background-size: cover; border-radius: 10px; backface-visibility: hidden; border: 2px solid gold; transform: rotateY(0deg); }
+    .booster-card .back { position: absolute; width: 100%; height: 100%; background: #333; border-radius: 10px; backface-visibility: hidden; border: 2px solid #555; transform: rotateY(180deg); }
 
-    /* TRADE UI */
-    .trade-table { display:flex; justify-content:space-around; align-items:center; margin: 20px 0; background:rgba(0,0,0,0.2); padding:10px; border-radius:15px;}
-    .trade-slot { 
-        width: 100px; height: 140px; background: rgba(0,0,0,0.3); 
-        border: 2px dashed #555; border-radius: 8px; 
-        display:flex; flex-direction:column; align-items:center; justify-content:center; 
-        color:#aaa; font-size:11px; background-size:cover; background-position:center; 
-        position:relative; overflow:hidden; transition: 0.3s;
-    }
-    .trade-slot.filled { border-style: solid; box-shadow: 0 0 15px rgba(255,255,255,0.2); }
+    /* MARKET */
+    .market-card { display: flex; align-items: center; background: rgba(255,255,255,0.05); border-radius:12px; margin-bottom:8px; padding:8px; border:1px solid #444; }
+    .m-img { width: 50px; height: 70px; background-size: cover; border-radius: 6px; margin-right: 12px; }
+    .m-info { text-align: left; font-size: 0.9rem; flex: 1; }
 
   </style>
 </head>
 <body>
 
 <canvas id="bg-canvas"></canvas>
-
 <canvas id="gameCanvas"></canvas>
-
 <div id="toast-area"></div>
+
+<div id="card-inspector" onclick="window.closeInspector()">
+    <div id="inspector-img"></div>
+    <div style="position:absolute; bottom: 50px; color: #aaa; font-size: 0.8rem;">Toque fora para fechar</div>
+</div>
 
 <div id="ui-layer">
   <div class="hud" id="game-hud" style="display:none;">
-    <div id="turn-badge" class="badge">Aguarde...</div>
-    <button class="btn" style="width:auto; padding:8px 20px; margin:0; font-size:0.8rem;" onclick="window.openMenu()">Menu</button>
+    <div class="top-bar">
+        <div id="turn-badge" class="badge">Aguarde...</div>
+        <div class="badge online-count" id="online-counter">Online: 0</div>
+    </div>
+    <div style="display:flex; gap:10px;">
+        <div class="chat-btn" onclick="window.toggleChat()">💬</div>
+        <button class="btn" style="width:auto; padding:8px 20px; margin:0; font-size:0.8rem;" onclick="window.openMenu()">Menu</button>
+    </div>
   </div>
 </div>
 
 <div id="screen-login" class="screen active">
   <div class="panel">
-    <div style="font-size:3rem; margin-bottom:10px; animation: float 3s infinite ease-in-out;">✨</div>
-    <h1 style="font-family:'Titan One'; color:var(--neon-purple); font-size: 2.2rem; margin:0; text-shadow:0 0 15px var(--neon-purple);">BAFO<br>MULTIVERSE</h1>
-    <p style="color:#aaa; font-size:0.9rem; margin-bottom:20px;">POKÉMON • MAGIC • LORCANA</p>
-    <input id="login-user" placeholder="Nome de Mestre" />
-    <button class="btn" onclick="window.doLogin()">ENTRAR NO MUNDO</button>
+    <h1>BAFO MULTIVERSE</h1>
+    <p>Recompensa Diária: 2000 Moedas!</p>
+    <input id="login-user" placeholder="Seu Nome" />
+    <button class="btn" onclick="window.doLogin()">JOGAR</button>
   </div>
 </div>
 
 <div id="screen-menu" class="screen">
   <div class="panel">
-    <h2 style="color:var(--neon-purple);">BASE DE COMANDO</h2>
-    <div style="display:flex; justify-content:space-around; background:rgba(0,0,0,0.3); padding:15px; border-radius:15px; margin-bottom:15px; border:1px solid rgba(255,255,255,0.1);">
-      <div style="text-align:center;">
-          <div style="font-size:1.5rem;">🪙</div>
-          <div style="font-size:0.7rem; color:#aaa; letter-spacing:1px;">MOEDAS</div>
-          <b id="coins-display" style="color:var(--gold); font-size:1.1rem;">0</b>
-      </div>
-      <div style="text-align:center;">
-          <div style="font-size:1.5rem;">🃏</div>
-          <div style="font-size:0.7rem; color:#aaa; letter-spacing:1px;">CARTAS</div>
-          <b id="cards-display" style="color:white; font-size:1.1rem;">0</b>
-      </div>
+    <h2>BASE</h2>
+    <div style="position: absolute; top: 10px; right: 20px; font-size: 0.8rem; color: var(--neon-blue);" id="menu-online-counter"></div>
+    <div style="display:flex; justify-content:space-around; background:rgba(0,0,0,0.3); padding:15px; border-radius:15px; margin-bottom:15px;">
+      <span>🪙 <b id="coins-display" style="color:var(--gold)">0</b></span>
+      <span>🃏 <b id="cards-display">0</b></span>
     </div>
     <div class="scroll-area" style="overflow:visible;">
-        <button class="btn" onclick="window.openBetting()">⚔️ Duelar (Aposta)</button>
-        <button class="btn btn-green" onclick="window.openMarket()">🏪 Mercado Global</button>
-        <button class="btn btn-blue" onclick="window.openTrading()">🤝 Trocas P2P</button>
-        <button class="btn" style="background:#444;" onclick="window.openCollection()">🗂️ Minha Coleção</button>
-        <button class="btn btn-orange" onclick="window.buyBooster()">🎁 Abrir Pacote (500)</button>
+        <button class="btn" onclick="window.openBetting()">⚔️ Duelar</button>
+        <button class="btn btn-green" onclick="window.openMarket()">🏪 Mercado</button>
+        <button class="btn btn-blue" onclick="window.toggleChat()">💬 Chat Global</button>
+        <button class="btn" style="background:#444;" onclick="window.openCollection()">🗂️ Coleção</button>
+        <button class="btn btn-orange" onclick="window.buyBooster()">🎁 Pacote (500)</button>
     </div>
   </div>
 </div>
 
-<div id="screen-trade-lobby" class="screen">
+<div id="screen-chat" class="screen">
     <div class="panel">
-        <h3 style="color:var(--neon-blue);">SALA DE TROCAS</h3>
-        <p style="font-size:0.9rem; color:#ccc;">Troque cartas em tempo real.</p>
-        <button class="btn" onclick="window.createTrade()">CRIAR SALA</button>
-        <button class="btn btn-blue" onclick="window.joinTrade()">ENTRAR COM ID</button>
-        <button class="btn" style="background:#444; box-shadow:none;" onclick="window.openMenu()">VOLTAR</button>
-    </div>
-</div>
-
-<div id="screen-trade-room" class="screen">
-    <div class="panel" style="max-width:600px;">
-        <h3 style="margin:0;">NEGOCIAÇÃO</h3>
-        <div style="font-size:0.8rem; color:#aaa; background:rgba(0,0,0,0.4); padding:4px 10px; border-radius:20px; margin-top:5px; display:inline-block;">ID: <span id="trade-id-display" style="color:white; font-family:monospace;">...</span></div>
-        <div id="trade-status" style="margin-top:10px; color:var(--gold); font-weight:bold; font-size:0.9rem;">Aguardando oponente...</div>
-        
-        <div class="trade-table">
-            <div id="my-offer-slot" class="trade-slot">Sua Oferta</div>
-            <div style="font-size:24px; color:var(--neon-blue); animation: pulse 1s infinite;">⇄</div>
-            <div id="their-offer-slot" class="trade-slot">Oponente</div>
+        <h3 style="color:var(--neon-blue)">CHAT GLOBAL</h3>
+        <div id="chat-messages"></div>
+        <div class="chat-input-area">
+            <input id="chat-input" placeholder="Digite algo..." />
+            <button class="btn btn-blue" style="width:auto; margin:10px 0;" onclick="window.sendChat()">➤</button>
         </div>
-
-        <div style="text-align:left; font-size:0.8rem; margin-bottom:5px; padding-left:5px; color:#aaa;">Selecione sua carta:</div>
-        <div class="scroll-area" style="height:150px; background:rgba(0,0,0,0.2); border-radius:10px;">
-            <div class="grid" id="trade-collection"></div>
-        </div>
-
-        <div style="display:flex; gap:10px; width:100%;">
-            <button class="btn btn-green" onclick="window.confirmTrade()">CONFIRMAR</button>
-            <button class="btn" style="background:#444; box-shadow:none;" onclick="window.openMenu()">SAIR</button>
-        </div>
+        <button class="btn" style="background:#444; margin-top:5px;" onclick="window.toggleChat()">FECHAR</button>
     </div>
 </div>
 
 <div id="screen-booster" class="screen">
-  <div class="panel" style="border-color:gold; box-shadow: 0 0 50px rgba(241, 196, 15, 0.2);">
-    <h2 style="color:gold; text-shadow:0 0 10px gold;">PACOTE ABERTO!</h2>
+  <div class="panel">
+    <h2 style="color:gold;">PACOTE ABERTO!</h2>
     <div id="booster-display"></div>
-    <button class="btn" style="margin-top:20px;" onclick="window.openMenu()">GUARDAR CARTAS</button>
+    <button class="btn" style="margin-top:20px;" onclick="window.openMenu()">GUARDAR</button>
   </div>
 </div>
 
 <div id="screen-bet" class="screen">
   <div class="panel">
-    <h3>SELEÇÃO DE APOSTA</h3>
-    <p style="font-size:0.8rem; color:#aaa; margin-top:-10px;">Escolha 1, 3 ou 5 cartas.</p>
+    <h3>APOSTAS</h3>
     <div class="scroll-area"><div class="grid" id="bet-grid"></div></div>
     <div style="display:flex; gap:10px; width:100%;">
         <button class="btn" onclick="window.createMatch()">DUELAR</button>
-        <button class="btn" style="background:#444; box-shadow:none;" onclick="window.openMenu()">VOLTAR</button>
+        <button class="btn" style="background:#444;" onclick="window.openMenu()">VOLTAR</button>
     </div>
   </div>
 </div>
 
 <div id="screen-market" class="screen">
   <div class="panel">
-    <h3 style="color:var(--btn-green);">MERCADO GLOBAL</h3>
-    <div class="scroll-area"><div class="grid" id="market-grid"></div></div>
-    <button class="btn" style="background:#444; box-shadow:none;" onclick="window.openMenu()">VOLTAR</button>
+    <h3>MERCADO</h3>
+    <div class="scroll-area"><div class="grid" id="market-grid" style="display:block;"></div></div>
+    <button class="btn" style="background:#444;" onclick="window.openMenu()">VOLTAR</button>
   </div>
 </div>
 
 <div id="screen-collection" class="screen">
   <div class="panel">
-    <h3>MINHA COLEÇÃO</h3>
-    <div style="font-size:0.7rem; margin-bottom:10px; display:flex; gap:10px; justify-content:center;">
-        <span style="color:#bdc3c7">♦ Common</span> <span style="color:#0984e3">♦ Rare</span> 
-        <span style="color:#6c5ce7">♦ Epic</span> <span style="color:#f1c40f">♦ Legend</span>
-    </div>
+    <h3>COLEÇÃO</h3>
+    <p style="font-size:0.7rem; color:#aaa;">Clique na imagem para ampliar em 3D</p>
     <div class="scroll-area"><div class="grid" id="collection-grid"></div></div>
-    <button class="btn" style="background:#444; box-shadow:none;" onclick="window.openMenu()">VOLTAR</button>
+    <button class="btn" style="background:#444;" onclick="window.openMenu()">VOLTAR</button>
   </div>
 </div>
 
@@ -311,107 +239,21 @@
 <script>
     const bgCanvas = document.getElementById('bg-canvas');
     const bgCtx = bgCanvas.getContext('2d');
-    
-    let bgW, bgH;
-    let spores = [];
-    const mouse = { x: null, y: null, radius: 150 };
-
+    let bgW, bgH; let spores = []; const mouse = { x: null, y: null, radius: 150 };
     window.addEventListener('resize', resizeBg);
     window.addEventListener('mousemove', (e) => { mouse.x = e.x; mouse.y = e.y; });
     window.addEventListener('touchmove', (e) => { mouse.x = e.touches[0].clientX; mouse.y = e.touches[0].clientY; });
     window.addEventListener('touchend', () => { mouse.x = null; mouse.y = null; });
-
-    function resizeBg() {
-        bgW = window.innerWidth;
-        bgH = window.innerHeight;
-        bgCanvas.width = bgW;
-        bgCanvas.height = bgH;
-        initSpores();
-    }
-
+    function resizeBg() { bgW = window.innerWidth; bgH = window.innerHeight; bgCanvas.width = bgW; bgCanvas.height = bgH; initSpores(); }
     class Spore {
-        constructor() {
-            this.init();
-        }
-        init() {
-            this.x = Math.random() * bgW;
-            this.y = Math.random() * bgH;
-            // MINI ESPOROS: Tamanho reduzido
-            this.size = Math.random() * 1.5 + 0.5; 
-            this.baseX = this.x;
-            this.baseY = this.y;
-            this.density = (Math.random() * 30) + 1;
-            this.speedY = Math.random() * 1 + 0.2;
-            this.alpha = Math.random();
-            this.alphaSpeed = Math.random() * 0.02 + 0.005;
-            // Cores mais brilhantes para ver por cima da UI
-            this.color = Math.random() > 0.5 ? '#ffffff' : '#00cec9'; 
-        }
-        draw() {
-            bgCtx.globalAlpha = this.alpha;
-            bgCtx.fillStyle = this.color;
-            bgCtx.beginPath();
-            bgCtx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
-            // Brilho intenso (Glow) para destacar
-            bgCtx.shadowBlur = 8;
-            bgCtx.shadowColor = this.color;
-            bgCtx.fill();
-            bgCtx.globalAlpha = 1;
-            bgCtx.shadowBlur = 0;
-        }
-        update() {
-            // Piscada
-            this.alpha += this.alphaSpeed;
-            if(this.alpha > 1 || this.alpha < 0.2) this.alphaSpeed = -this.alphaSpeed;
-
-            // Flutuar
-            this.y -= this.speedY;
-            if(this.y < -10) this.y = bgH + 10;
-
-            // Interação com Mouse (Empurrar)
-            if(mouse.x != null) {
-                let dx = mouse.x - this.x;
-                let dy = mouse.y - this.y;
-                let distance = Math.sqrt(dx*dx + dy*dy);
-                
-                if (distance < mouse.radius) {
-                    const forceDirectionX = dx / distance;
-                    const forceDirectionY = dy / distance;
-                    const maxDistance = mouse.radius;
-                    const force = (maxDistance - distance) / maxDistance;
-                    const directionX = forceDirectionX * force * this.density;
-                    const directionY = forceDirectionY * force * this.density;
-
-                    this.x -= directionX;
-                    this.y -= directionY;
-                } else {
-                    if (this.x !== this.baseX) {
-                        let dx = this.x - this.baseX;
-                        this.x -= dx/20;
-                    }
-                }
-            }
-        }
+        constructor() { this.init(); }
+        init() { this.x = Math.random() * bgW; this.y = Math.random() * bgH; this.size = Math.random() * 1.5 + 0.5; this.baseX = this.x; this.baseY = this.y; this.density = (Math.random() * 30) + 1; this.speedY = Math.random() * 1 + 0.2; this.alpha = Math.random(); this.alphaSpeed = Math.random() * 0.02 + 0.005; this.color = Math.random() > 0.5 ? '#ffffff' : '#00cec9'; }
+        draw() { bgCtx.globalAlpha = this.alpha; bgCtx.fillStyle = this.color; bgCtx.beginPath(); bgCtx.arc(this.x, this.y, this.size, 0, Math.PI * 2); bgCtx.shadowBlur = 8; bgCtx.shadowColor = this.color; bgCtx.fill(); bgCtx.globalAlpha = 1; bgCtx.shadowBlur = 0; }
+        update() { this.alpha += this.alphaSpeed; if(this.alpha > 1 || this.alpha < 0.2) this.alphaSpeed = -this.alphaSpeed; this.y -= this.speedY; if(this.y < -10) this.y = bgH + 10; if(mouse.x != null) { let dx = mouse.x - this.x; let dy = mouse.y - this.y; let distance = Math.sqrt(dx*dx + dy*dy); if (distance < mouse.radius) { const f = (mouse.radius - distance) / mouse.radius; this.x -= (dx / distance) * f * this.density; this.y -= (dy / distance) * f * this.density; } else if (this.x !== this.baseX) { this.x -= (this.x - this.baseX)/20; } } }
     }
-
-    function initSpores() {
-        spores = [];
-        // Aumentado a quantidade para dar efeito de enxame mágico
-        for(let i=0; i<150; i++) spores.push(new Spore());
-    }
-
-    function animateBg() {
-        bgCtx.clearRect(0, 0, bgW, bgH);
-        for(let i=0; i<spores.length; i++) {
-            spores[i].draw();
-            spores[i].update();
-        }
-        requestAnimationFrame(animateBg);
-    }
-
-    resizeBg();
-    animateBg();
+    function initSpores() { spores = []; for(let i=0; i<150; i++) spores.push(new Spore()); }
+    function animateBg() { bgCtx.clearRect(0, 0, bgW, bgH); for(let i=0; i<spores.length; i++) { spores[i].draw(); spores[i].update(); } requestAnimationFrame(animateBg); }
+    resizeBg(); animateBg();
 </script>
-
 </body>
 </html>
