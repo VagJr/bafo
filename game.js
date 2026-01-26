@@ -2,14 +2,11 @@ const socket = io();
 const canvas = document.getElementById("gameCanvas");
 const ctx = canvas.getContext("2d");
 
-let width = window.innerWidth,
-  height = window.innerHeight;
-canvas.width = width;
-canvas.height = height;
+let width = window.innerWidth, height = window.innerHeight;
+canvas.width = width; canvas.height = height;
 
 let gameState = "LOGIN";
 let myUser = null;
-
 let currentRoom = null;
 let isMyTurn = false;
 let currentTurnId = null;
@@ -19,625 +16,423 @@ let particles = [];
 let flyingCards = [];
 
 const camera = { x: 0, y: 0, zoom: 1 };
-
-const PHYSICS = {
-  GRAVITY: 0.6,
-  BOUNCE: 0.4,
-  FRICTION: 0.92,
-  MAX_HOLD_TIME: 800,
-  MAX_FORCE: 25,
-  EXPLOSION_RADIUS: 220,
-};
-
 const images = {};
-["card1.png", "card2.png", "card3.png", "card4.png", "card5.png"].forEach((n) => {
-  const i = new Image();
-  i.src = `assets/${n}`;
-  images[n] = i;
+["card1.png", "card2.png", "card3.png", "card4.png", "card5.png"].forEach(n => {
+    const i = new Image(); i.src = `assets/${n}`; images[n] = i;
 });
 
-// --- Card ---
+const PHYSICS = {
+    GRAVITY: 0.5,
+    BOUNCE: 0.4, 
+    FRICTION: 0.94,
+    SETTLE_THRESHOLD: 0.1, // Velocidade mínima para considerar parada
+    TIPPING_FORCE: 2 // Força para tombar a carta se ficar de pé
+};
+
+// --- CLASSE CARTA ---
 class PhysCard {
-  constructor(data, x, y) {
-    this.data = data;
-    this.uid = data.uid;
-    this.x = x;
-    this.y = y;
-    this.z = 0;
-    this.vx = 0;
-    this.vy = 0;
-    this.vz = 0;
-    this.angleX = data.flipped ? 180 : 0;
-    this.velAngleX = 0;
-    this.angleZ = (Math.random() - 0.5) * 20;
-    this.velAngleZ = 0;
-    this.w = 130;
-    this.h = 180;
-    this.settled = true;
-  }
-
-  update() {
-    if (this.settled && this.z <= 0.01) return;
-
-    this.x += this.vx;
-    this.y += this.vy;
-    this.z += this.vz;
-    this.angleX += this.velAngleX;
-    this.angleZ += this.velAngleZ;
-
-    if (this.z > 0) this.vz -= PHYSICS.GRAVITY;
-
-    if (this.z <= 0) {
-      this.z = 0;
-
-      if (Math.abs(this.vz) > 1.5) {
-        this.vz *= -PHYSICS.BOUNCE;
-        this.velAngleX *= 0.6;
-      } else {
-        this.vz = 0;
+    constructor(data, x, y) {
+        this.data = data; this.uid = data.uid;
+        this.x = x; this.y = y; this.z = 0;
+        this.vx=0; this.vy=0; this.vz=0;
+        
+        // Rotação: 0 = Costas, 180 = Frente
+        // Inicializa sempre virada para baixo (0) ou levemente inclinada
+        this.angleX = 0; 
+        this.velAngleX = 0;
+        this.angleZ = (Math.random()-0.5)*360; // Rotação na mesa 
+        this.velAngleZ = 0;
+        
+        this.w = 130; this.h = 180;
         this.settled = true;
-        this.checkFlip();
-      }
-
-      this.vx *= PHYSICS.FRICTION;
-      this.vy *= PHYSICS.FRICTION;
-      this.velAngleZ *= PHYSICS.FRICTION;
-      this.velAngleX *= PHYSICS.FRICTION;
-    } else {
-      this.vx *= 0.99;
-      this.vy *= 0.99;
-    }
-  }
-
-  checkFlip() {
-    const d = Math.abs(this.angleX % 360);
-    if (d > 90 && d < 270) {
-      this.angleX = 180;
-      this.data.flipped = true;
-    } else {
-      this.angleX = 0;
-      this.data.flipped = false;
-    }
-    this.velAngleX = 0;
-  }
-
-  draw(ctx) {
-    const depth = 1 + this.z / 600;
-    const rad = this.angleX * (Math.PI / 180);
-    const flip = Math.cos(rad);
-    const isFace = flip < 0;
-
-    ctx.save();
-
-    if (this.z > 2) {
-      ctx.translate(this.x + this.z / 4, this.y + this.z / 4);
-      ctx.rotate(this.angleZ * (Math.PI / 180));
-      ctx.fillStyle = `rgba(0,0,0,${Math.max(0, 0.3 - this.z / 800)})`;
-      ctx.beginPath();
-      ctx.roundRect(-this.w / 2, -this.h / 2, this.w, this.h, 10);
-      ctx.fill();
-      ctx.restore();
-      ctx.save();
+        this.dead = false; // Se true, foi ganha
     }
 
-    ctx.translate(this.x, this.y - this.z);
-    ctx.scale(depth, Math.abs(flip) * depth);
-    ctx.rotate(this.angleZ * (Math.PI / 180));
+    update() {
+        if(this.dead) return;
 
-    const img = images[`card${this.data.cardId}.png`];
+        // Se move apenas se tiver velocidade ou estiver no ar
+        if (!this.settled || this.z > 0.01 || Math.abs(this.vx)>0.01) {
+            
+            this.x += this.vx;
+            this.y += this.vy;
+            this.z += this.vz;
+            this.angleX += this.velAngleX;
+            this.angleZ += this.velAngleZ;
 
-    if (isFace) {
-      ctx.fillStyle = "#fff";
-      ctx.beginPath();
-      ctx.roundRect(-this.w / 2, -this.h / 2, this.w, this.h, 10);
-      ctx.fill();
+            // Gravidade
+            if(this.z > 0) this.vz -= PHYSICS.GRAVITY;
 
-      if (img && img.complete) {
+            // Colisão Chão
+            if(this.z <= 0) {
+                this.z = 0;
+                
+                // Quique
+                if(Math.abs(this.vz) > 1.0) {
+                    this.vz *= -PHYSICS.BOUNCE;
+                    // Ao bater no chão, perde rotação mas ganha "caos" no angulo Z
+                    this.velAngleX *= 0.5;
+                    this.velAngleZ += (Math.random()-0.5)*2; 
+                } else {
+                    this.vz = 0;
+                    // Atrito forte no chão
+                    this.vx *= 0.8;
+                    this.vy *= 0.8;
+                    this.velAngleX *= 0.8;
+                    this.velAngleZ *= 0.8;
+                }
+            } else {
+                // Ar
+                this.vx *= 0.99; this.vy *= 0.99;
+            }
+
+            // --- LÓGICA DE TOMBAMENTO (ANTI-ACHATAMENTO) ---
+            // Se a velocidade angular está baixa, força a cair
+            if(this.z === 0 && Math.abs(this.velAngleX) < 2) {
+                const normAngle = Math.abs(this.angleX % 360);
+                
+                // Se estiver "em pé" (perto de 90 ou 270)
+                if ((normAngle > 70 && normAngle < 110) || (normAngle > 250 && normAngle < 290)) {
+                    // Empurra para o lado mais próximo
+                    if (normAngle < 90 || normAngle > 270) this.velAngleX -= PHYSICS.TIPPING_FORCE;
+                    else this.velAngleX += PHYSICS.TIPPING_FORCE;
+                } 
+                else if (Math.abs(this.vx) < 0.1 && Math.abs(this.vy) < 0.1) {
+                    this.settled = true;
+                    this.checkWinCondition();
+                }
+            }
+        }
+    }
+
+    checkWinCondition() {
+        if(this.dead) return;
+        
+        // Normaliza ângulo
+        const norm = Math.abs(this.angleX % 360);
+        // Se estiver entre 90 e 270, é frente (VIRADA)
+        const isFaceUp = (norm > 90 && norm < 270);
+        
+        this.data.flipped = isFaceUp;
+
+        // Se virou, reseta ângulo visual para 180 (perfeitamente virada) e CLAMA
+        if(isFaceUp) {
+            this.angleX = 180;
+            if(isMyTurn) {
+                this.dead = true;
+                spawnFlyingCard(this, socket.id);
+                socket.emit('card_flip_claim', { 
+                    roomId: currentRoom.roomId, 
+                    cardUID: this.uid 
+                });
+            }
+        } else {
+            this.angleX = 0; // Perfeitamente de costas
+        }
+        
+        this.velAngleX = 0;
+    }
+
+    draw(ctx) {
+        if(this.dead) return;
+
+        const depth = 1 + (this.z / 600);
+        const rad = this.angleX * (Math.PI/180);
+        const flip = Math.cos(rad); // -1 (Frente) a 1 (Verso)
+        
         ctx.save();
-        ctx.clip();
-        ctx.drawImage(img, -this.w / 2, -this.h / 2, this.w, this.h);
+        
+        // 1. Sombra
+        if(this.z > 2) {
+            ctx.translate(this.x + this.z/3, this.y + this.z/3);
+            ctx.rotate(this.angleZ * Math.PI/180);
+            ctx.fillStyle = `rgba(0,0,0,${Math.max(0, 0.4 - this.z/500)})`;
+            ctx.beginPath(); ctx.roundRect(-this.w/2, -this.h/2, this.w, this.h, 8); ctx.fill();
+            ctx.restore();
+            ctx.save();
+        }
+
+        ctx.translate(this.x, this.y - this.z);
+        ctx.scale(depth, Math.abs(flip) * depth); // Efeito 3D
+        ctx.rotate(this.angleZ * Math.PI/180);
+
+        // --- RENDERIZAÇÃO DE BORDA (Anti-Achatamento Visual) ---
+        // Se flip estiver muito perto de 0, desenha apenas uma linha grossa (a borda)
+        if (Math.abs(flip) < 0.05) {
+            ctx.fillStyle = '#ccc'; // Cor da borda do papel
+            ctx.fillRect(-this.w/2, -this.h/2, this.w, this.h);
+            ctx.strokeStyle = '#888';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(-this.w/2, -this.h/2, this.w, this.h);
+            ctx.restore();
+            return;
+        }
+
+        const isFace = flip < 0;
+        const img = images[`card${this.data.cardId}.png`];
+
+        if(isFace) {
+            // FRENTE
+            ctx.fillStyle = "#fff";
+            ctx.fillRect(-this.w/2, -this.h/2, this.w, this.h);
+            if(img && img.complete) ctx.drawImage(img, -this.w/2, -this.h/2, this.w, this.h);
+            
+            // Borda de Raridade
+            ctx.strokeStyle = "gold"; ctx.lineWidth = 4; ctx.strokeRect(-this.w/2, -this.h/2, this.w, this.h);
+        } else {
+            // VERSO
+            ctx.fillStyle = "#2d3436";
+            ctx.fillRect(-this.w/2, -this.h/2, this.w, this.h);
+            ctx.strokeStyle = "#fab1a0"; ctx.lineWidth = 3; ctx.strokeRect(-this.w/2, -this.h/2, this.w, this.h);
+            ctx.fillStyle = "#fab1a0"; ctx.font = "40px Arial"; ctx.textAlign="center"; ctx.fillText("?", 0, 15);
+        }
         ctx.restore();
-      }
-
-      // raridade cor
-      const rarity = this.data.rarity || "common";
-      let stroke = "#ffd700";
-      if (rarity === "common") stroke = "#dfe6e9";
-      if (rarity === "rare") stroke = "#0984e3";
-      if (rarity === "epic") stroke = "#a29bfe";
-      if (rarity === "legend") stroke = "#fdcb6e";
-
-      ctx.strokeStyle = stroke;
-      ctx.lineWidth = 4;
-      ctx.stroke();
-    } else {
-      ctx.fillStyle = "#2d3436";
-      ctx.beginPath();
-      ctx.roundRect(-this.w / 2, -this.h / 2, this.w, this.h, 10);
-      ctx.fill();
-      ctx.strokeStyle = "#ffd700";
-      ctx.lineWidth = 3;
-      ctx.stroke();
-      ctx.fillStyle = "#ffd700";
-      ctx.font = "50px Arial";
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      ctx.fillText("?", 0, 0);
     }
-
-    ctx.restore();
-  }
 }
 
-// --- Particles ---
+// --- PARTICULAS ---
 class Particle {
-  constructor(x, y) {
-    this.x = x;
-    this.y = y;
-    this.life = 1.0;
-    this.vx = (Math.random() - 0.5) * 8;
-    this.vy = (Math.random() - 0.5) * 8;
-  }
-  update() {
-    this.x += this.vx;
-    this.y += this.vy;
-    this.life -= 0.03;
-  }
-  draw(ctx) {
-    ctx.globalAlpha = this.life;
-    ctx.fillStyle = "white";
-    ctx.beginPath();
-    ctx.arc(this.x, this.y, Math.random() * 3, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.globalAlpha = 1;
-  }
+    constructor(x, y) {
+        this.x=x; this.y=y; this.life=1.0;
+        this.vx=(Math.random()-0.5)*10; this.vy=(Math.random()-0.5)*10;
+    }
+    update() { this.x+=this.vx; this.y+=this.vy; this.life-=0.05; }
+    draw(ctx) {
+        ctx.globalAlpha=this.life; ctx.fillStyle='gold';
+        ctx.beginPath(); ctx.arc(this.x,this.y,4,0,Math.PI*2); ctx.fill();
+        ctx.globalAlpha=1;
+    }
 }
 
-// --- Input ---
+// --- INPUT & EXPLOSÃO ---
 const input = { active: false, startT: 0, x: 0, y: 0 };
-let hasPlayedThisTurn = false;
+let hasPlayed = false;
 
-function handleStart(x, y) {
-  if (gameState !== "PLAYING" || !isMyTurn) return;
-  if (hasPlayedThisTurn) return;
-
-  input.active = true;
-  input.startT = Date.now();
-  input.x = x;
-  input.y = y;
+function startIn(x,y) {
+    if(gameState!=='PLAYING' || !isMyTurn || hasPlayed) return;
+    input.active=true; input.startT=Date.now(); input.x=x; input.y=y;
 }
+function moveIn(x,y) { if(input.active){input.x=x; input.y=y;} }
+function endIn() {
+    if(!input.active) return;
+    input.active=false; hasPlayed=true;
 
-function handleMove(x, y) {
-  if (input.active) {
-    input.x = x;
-    input.y = y;
-  }
-}
+    const dt = Math.min(Date.now()-input.startT, 800);
+    const pressure = dt/800;
+    const world = screenToWorld(input.x, input.y);
 
-function handleEnd() {
-  if (!input.active) return;
-  input.active = false;
-
-  if (gameState !== "PLAYING" || !isMyTurn) return;
-  if (hasPlayedThisTurn) return;
-
-  const holdTime = Math.min(Date.now() - input.startT, PHYSICS.MAX_HOLD_TIME);
-  const pressure = holdTime / PHYSICS.MAX_HOLD_TIME;
-
-  const worldPos = screenToWorld(input.x, input.y);
-
-  // ✅ NÃO aplica local: manda pro server sincronizar pros 2
-  socket.emit("action_blow", {
-    roomId: currentRoom.roomId,
-    turnId: currentTurnId,
-    x: worldPos.x,
-    y: worldPos.y,
-    pressure,
-  });
-
-  hasPlayedThisTurn = true;
+    socket.emit('action_blow', {
+        roomId: currentRoom.roomId,
+        turnId: currentTurnId,
+        x: world.x, y: world.y, pressure
+    });
 }
 
 function createExplosion(x, y, pressure) {
-  const radius = PHYSICS.EXPLOSION_RADIUS * (0.8 + pressure * 0.4);
-  const force = PHYSICS.MAX_FORCE * pressure;
+    // Adiciona variação aleatória no raio e na força para não haver "repeat logic"
+    const chaos = (Math.random() * 0.2) + 0.9; // 0.9x a 1.1x
+    const radius = 220 * (0.8 + pressure * 0.4) * chaos;
+    const force = 25 * pressure * chaos;
+    
+    let hitAny = false;
 
-  let hit = false;
+    physicsCards.forEach(c => {
+        if(c.dead) return;
+        const dist = Math.hypot(c.x-x, c.y-y);
+        
+        if(dist < radius) {
+            hitAny = true;
+            const impact = (1 - dist/radius);
+            
+            // Vetor de empurrão
+            const dx = (c.x - x)/dist;
+            const dy = (c.y - y)/dist;
 
-  physicsCards.forEach((c) => {
-    const dist = Math.hypot(c.x - x, c.y - y);
-    if (dist < radius) {
-      hit = true;
-      const impact = 1 - dist / radius;
+            // Ângulo aleatório para evitar padrão
+            const spinDir = Math.random() > 0.5 ? 1 : -1;
+            
+            c.vx += dx * impact * 12;
+            c.vy += dy * impact * 12;
+            c.vz += force * impact; // Pulo
+            c.velAngleX += force * impact * 2.5 * spinDir; // Giro
+            
+            c.settled = false;
+        }
+    });
 
-      const safeDist = Math.max(1, dist);
-      const dx = (c.x - x) / safeDist;
-      const dy = (c.y - y) / safeDist;
+    if(hitAny) for(let i=0;i<20;i++) particles.push(new Particle(x,y));
 
-      c.vx += dx * impact * 15;
-      c.vy += dy * impact * 15;
-      c.vz += force * impact;
-
-      c.velAngleX += force * impact * (Math.random() > 0.5 ? 2 : -2);
-      c.settled = false;
+    // Se fui eu e joguei, espero um tempo e passo a vez se nada virou
+    if(isMyTurn && hasPlayed) {
+        setTimeout(checkTurnEnd, 2000);
     }
-  });
-
-  if (hit) {
-    for (let i = 0; i < 15; i++) particles.push(new Particle(x, y));
-  }
 }
 
-canvas.addEventListener("mousedown", (e) => handleStart(e.clientX, e.clientY));
-canvas.addEventListener("mousemove", (e) => handleMove(e.clientX, e.clientY));
-canvas.addEventListener("mouseup", handleEnd);
+function checkTurnEnd() {
+    // Se todas settled e nada mais virou, passa vez
+    const allStopped = physicsCards.every(c => c.settled);
+    if(allStopped) {
+        socket.emit('turn_end_request', { roomId: currentRoom.roomId });
+    } else {
+        setTimeout(checkTurnEnd, 500); // Tenta de novo
+    }
+}
 
-canvas.addEventListener(
-  "touchstart",
-  (e) => {
-    e.preventDefault();
-    handleStart(e.touches[0].clientX, e.touches[0].clientY);
-  },
-  { passive: false }
-);
-canvas.addEventListener(
-  "touchmove",
-  (e) => {
-    e.preventDefault();
-    handleMove(e.touches[0].clientX, e.touches[0].clientY);
-  },
-  { passive: false }
-);
-canvas.addEventListener("touchend", handleEnd);
-
-// --- Camera ---
+// --- CAMERA ---
 function updateCamera() {
-  if (physicsCards.length === 0) return;
+    if(physicsCards.length===0 && flyingCards.length===0) return;
+    let minX=Infinity, maxX=-Infinity, minY=Infinity, maxY=-Infinity;
+    
+    // Foca apenas nas cartas vivas
+    let targets = physicsCards.filter(c => !c.dead);
+    if(targets.length === 0) targets = flyingCards; // Se nao tem cartas, foca nas voando
 
-  let minX = Infinity,
-    maxX = -Infinity,
-    minY = Infinity,
-    maxY = -Infinity;
+    targets.forEach(c => {
+        minX=Math.min(minX,c.x); maxX=Math.max(maxX,c.x);
+        minY=Math.min(minY,c.y); maxY=Math.max(maxY,c.y);
+    });
 
-  physicsCards.forEach((c) => {
-    minX = Math.min(minX, c.x);
-    maxX = Math.max(maxX, c.x);
-    minY = Math.min(minY, c.y);
-    maxY = Math.max(maxY, c.y);
-  });
+    if(minX === Infinity) return; // Nada pra ver
 
-  minX -= 300;
-  maxX += 300;
-  minY -= 300;
-  maxY += 300;
+    // Margem
+    minX-=300; maxX+=300; minY-=300; maxY+=300;
+    
+    const tz = Math.max(0.3, Math.min(width/(maxX-minX), height/(maxY-minY), 1.2));
+    const tx = (minX+maxX)/2;
+    const ty = (minY+maxY)/2;
 
-  const contentW = maxX - minX;
-  const contentH = maxY - minY;
-
-  let targetZoom = Math.min(width / contentW, height / contentH);
-  targetZoom = Math.max(0.3, Math.min(targetZoom, 1.2));
-
-  const targetX = (minX + maxX) / 2;
-  const targetY = (minY + maxY) / 2;
-
-  camera.x += (targetX - camera.x) * 0.1;
-  camera.y += (targetY - camera.y) * 0.1;
-  camera.zoom += (targetZoom - camera.zoom) * 0.1;
+    camera.x += (tx-camera.x)*0.1;
+    camera.y += (ty-camera.y)*0.1;
+    camera.zoom += (tz-camera.zoom)*0.1;
 }
-
 function screenToWorld(sx, sy) {
-  return {
-    x: (sx - width / 2) / camera.zoom + camera.x,
-    y: (sy - height / 2) / camera.zoom + camera.y,
-  };
+    return { x: (sx-width/2)/camera.zoom + camera.x, y: (sy-height/2)/camera.zoom + camera.y };
 }
 
-// --- Loop ---
-let reporting = false;
-
-function sendReport() {
-  if (reporting) return;
-  if (!isMyTurn) return;
-  if (!hasPlayedThisTurn) return;
-
-  const flipped = physicsCards
-    .filter((c) => c.data.flipped)
-    .map((c) => ({ uid: c.uid, flipped: true }));
-
-  reporting = true;
-  socket.emit("physics_report", {
-    roomId: currentRoom.roomId,
-    turnId: currentTurnId,
-    results: flipped,
-  });
-
-  setTimeout(() => (reporting = false), 1200);
-}
-
+// --- RENDER LOOP ---
 function loop() {
-  ctx.clearRect(0, 0, width, height);
+    ctx.clearRect(0,0,width,height);
+    
+    if(gameState==='PLAYING') {
+        updateCamera();
+        ctx.save();
+        ctx.translate(width/2, height/2);
+        ctx.scale(camera.zoom, camera.zoom);
+        ctx.translate(-camera.x, -camera.y);
 
-  if (gameState === "PLAYING") {
-    updateCamera();
+        // Mesa
+        ctx.beginPath(); ctx.arc(0,0,900,0,Math.PI*2); 
+        ctx.strokeStyle='rgba(255,255,255,0.1)'; ctx.lineWidth=10; ctx.stroke();
 
-    ctx.save();
-    ctx.translate(width / 2, height / 2);
-    ctx.scale(camera.zoom, camera.zoom);
-    ctx.translate(-camera.x, -camera.y);
+        particles.forEach((p,i)=>{p.update(); p.draw(ctx); if(p.life<=0)particles.splice(i,1)});
+        
+        physicsCards.forEach(c=>{ c.update(); c.draw(ctx); });
 
-    // mesa
-    ctx.strokeStyle = "rgba(255,255,255,0.1)";
-    ctx.lineWidth = 5;
-    ctx.beginPath();
-    ctx.arc(0, 0, 800, 0, Math.PI * 2);
-    ctx.stroke();
+        // Indicador de Pressão
+        if(input.active) {
+            const dt = Math.min(Date.now()-input.startT, PHYSICS.MAX_HOLD_TIME);
+            const w = screenToWorld(input.x, input.y);
+            ctx.beginPath(); ctx.arc(w.x, w.y, 50+(dt/10), 0, Math.PI*2);
+            ctx.strokeStyle=`rgba(255,200,0,${dt/800})`; ctx.lineWidth=5; ctx.stroke();
+        }
+        ctx.restore();
 
-    particles.forEach((p, i) => {
-      p.update();
-      p.draw(ctx);
-      if (p.life <= 0) particles.splice(i, 1);
-    });
-
-    let settled = true;
-    physicsCards.forEach((c) => {
-      c.update();
-      c.draw(ctx);
-      if (!c.settled) settled = false;
-    });
-
-    // círculo do charge
-    if (input.active) {
-      const ws = screenToWorld(input.x, input.y);
-      const holdTime = Math.min(Date.now() - input.startT, PHYSICS.MAX_HOLD_TIME);
-      const pct = holdTime / PHYSICS.MAX_HOLD_TIME;
-
-      const radius = 100 - pct * 60;
-      const alpha = 0.3 + pct * 0.7;
-
-      ctx.beginPath();
-      ctx.arc(ws.x, ws.y, radius, 0, Math.PI * 2);
-      ctx.strokeStyle = `rgba(255, 215, 0, ${alpha})`;
-      ctx.lineWidth = 5 + pct * 10;
-      ctx.stroke();
+        // Flying UI
+        flyingCards.forEach((fc,i)=>{
+            fc.x += (fc.tx - fc.x)*0.1; fc.y += (fc.ty - fc.y)*0.1;
+            fc.scale -= 0.02;
+            ctx.save(); ctx.translate(fc.x, fc.y); ctx.scale(fc.scale, fc.scale);
+            const img = images[`card${fc.cardId}.png`];
+            if(img) ctx.drawImage(img,-40,-60,80,120);
+            ctx.strokeStyle='gold'; ctx.strokeRect(-40,-60,80,120);
+            ctx.restore();
+            if(fc.scale<=0) flyingCards.splice(i,1);
+        });
     }
-
-    ctx.restore();
-
-    // se tudo parou e não está segurando, manda report
-    if (settled && !input.active) {
-      sendReport();
-    }
-
-    // cartas voando overlay
-    flyingCards.forEach((fc, i) => {
-      const tx = width / 2;
-      const ty = fc.winnerId === socket.id ? height - 50 : 50;
-
-      fc.x += (tx - fc.x) * 0.1;
-      fc.y += (ty - fc.y) * 0.1;
-      fc.scale -= 0.03;
-
-      ctx.save();
-      ctx.translate(fc.x, fc.y);
-      ctx.scale(fc.scale, fc.scale);
-
-      const img = images[`card${fc.cardId}.png`];
-      if (img && img.complete) ctx.drawImage(img, -40, -60, 80, 120);
-
-      ctx.strokeStyle = "gold";
-      ctx.lineWidth = 5;
-      ctx.strokeRect(-40, -60, 80, 120);
-      ctx.restore();
-
-      if (fc.scale <= 0) flyingCards.splice(i, 1);
-    });
-  }
-
-  requestAnimationFrame(loop);
+    requestAnimationFrame(loop);
 }
 
-// --- UI ---
-function notify(msg) {
-  const d = document.createElement("div");
-  d.className = "toast";
-  d.innerText = msg;
-  document.getElementById("toast-area").appendChild(d);
-  setTimeout(() => d.remove(), 3000);
-}
+// Listeners
+canvas.addEventListener('mousedown',e=>startIn(e.clientX,e.clientY));
+canvas.addEventListener('mousemove',e=>moveIn(e.clientX,e.clientY));
+canvas.addEventListener('mouseup',endIn);
+canvas.addEventListener('touchstart',e=>{e.preventDefault();startIn(e.touches[0].clientX,e.touches[0].clientY)},{passive:false});
+canvas.addEventListener('touchmove',e=>{e.preventDefault();moveIn(e.touches[0].clientX,e.touches[0].clientY)},{passive:false});
+canvas.addEventListener('touchend',endIn);
 
+// Sockets e UI
+function notify(m) {
+    const d=document.createElement('div'); d.className='toast'; d.innerText=m;
+    document.getElementById('toast-area').appendChild(d); setTimeout(()=>d.remove(),3000);
+}
 function updateHUD() {
-  document.getElementById("coins-display").innerText = myUser.coins;
-  document.getElementById("cards-display").innerText = myUser.collection.length;
+    document.getElementById('coins-display').innerText = myUser.coins;
+    document.getElementById('cards-display').innerText = myUser.collection.length;
+}
+function spawnFlyingCard(cardObj, winnerId) {
+    flyingCards.push({
+        x: cardObj.x, y: cardObj.y, 
+        cardId: cardObj.data.cardId,
+        tx: width/2, ty: winnerId===socket.id ? height-50 : 50,
+        scale: 1
+    });
 }
 
-function updateTurnUI() {
-  const b = document.getElementById("turn-badge");
-  b.innerText = isMyTurn ? "SUA VEZ!" : "AGUARDE...";
-  b.style.borderColor = isMyTurn ? "#00cec9" : "#555";
-
-  hasPlayedThisTurn = false;
-
-  if (isMyTurn) notify("Sua vez! Faça 1 jogada.");
-}
-
-// --- COLEÇÃO ---
-function rarityColor(rarity) {
-  if (rarity === "common") return "#dfe6e9";
-  if (rarity === "rare") return "#0984e3";
-  if (rarity === "epic") return "#a29bfe";
-  if (rarity === "legend") return "#fdcb6e";
-  return "#aaa";
-}
-
-function openCollection() {
-  const grid = document.getElementById("collection-grid");
-  grid.innerHTML = "";
-
-  myUser.collection.forEach((c) => {
-    const item = document.createElement("div");
-    item.className = "collection-card";
-    item.style.borderColor = rarityColor(c.rarity);
-
-    const top = document.createElement("div");
-    top.className = "collection-top";
-    top.innerText = (c.name || "Carta") + ` (${c.rarity || "?"})`;
-
-    const img = document.createElement("div");
-    img.className = "collection-img";
-    img.style.backgroundImage = `url(assets/card${c.cardId}.png)`;
-
-    item.appendChild(top);
-    item.appendChild(img);
-    grid.appendChild(item);
-  });
-
-  document.querySelectorAll(".screen").forEach((s) => s.classList.remove("active"));
-  document.getElementById("screen-collection").classList.add("active");
-}
-
-window.openCollection = openCollection;
-
-// --- Socket ---
-socket.on("login_success", (u) => {
-  myUser = u;
-  document.querySelector(".active").classList.remove("active");
-  document.getElementById("screen-menu").classList.add("active");
-  updateHUD();
+socket.on('login_success', u=>{ myUser=u; document.querySelector('.active').classList.remove('active'); document.getElementById('screen-menu').classList.add('active'); updateHUD(); });
+socket.on('game_start', r=>{
+    currentRoom=r; gameState='PLAYING'; currentTurnId=r.turnId; isMyTurn=r.currentTurn===socket.id;
+    document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+    document.getElementById('game-hud').style.display='flex';
+    hasPlayed=false;
+    
+    physicsCards = r.pot.map((c,i)=>{
+        // Espalha as cartas no centro (mas não coladas)
+        const a=i*1.5; const d=20+(i*5);
+        return new PhysCard(c, Math.cos(a)*d, Math.sin(a)*d);
+    });
+    notify(isMyTurn?"Sua Vez!":"Oponente...");
+    document.getElementById('turn-badge').innerText = isMyTurn?"SUA VEZ!":"AGUARDE...";
 });
 
-socket.on("update_profile", (u) => {
-  myUser = u;
-  updateHUD();
-});
+socket.on('action_blow', d => createExplosion(d.x, d.y, d.pressure));
 
-socket.on("waiting_opponent", () => notify("Aguardando oponente..."));
-
-socket.on("game_start", (room) => {
-  currentRoom = room;
-  gameState = "PLAYING";
-
-  currentTurnId = room.turnId;
-  isMyTurn = room.currentTurn === socket.id;
-
-  document.querySelectorAll(".screen").forEach((s) => s.classList.remove("active"));
-  document.getElementById("game-hud").style.display = "flex";
-
-  physicsCards = room.pot.map((c, i) => {
-    const angle = i * 0.5;
-    const dist = 10 + i * 15;
-    return new PhysCard(c, Math.cos(angle) * dist, Math.sin(angle) * dist);
-  });
-
-  notify(room.coinFlipWinnerIndex === 0 ? "Moeda: Player 1 começa!" : "Moeda: Player 2 começa!");
-  updateTurnUI();
-});
-
-// ✅ RECEBE O GOLPE AO VIVO E APLICA IGUAL NOS 2
-socket.on("action_blow", (data) => {
-  if (!currentRoom || data.roomId !== currentRoom.roomId) return;
-  if (data.turnId !== currentTurnId) return;
-  createExplosion(data.x, data.y, data.pressure);
-});
-
-socket.on("turn_result", (data) => {
-  currentTurnId = data.turnId;
-
-  data.cardsWonUIDs.forEach((uid) => {
-    const idx = physicsCards.findIndex((c) => c.uid === uid);
-    if (idx > -1) {
-      const c = physicsCards[idx];
-      flyingCards.push({
-        x: c.x,
-        y: c.y,
-        cardId: c.data.cardId,
-        winnerId: data.winnerId,
-        scale: 1.0,
-      });
-      physicsCards.splice(idx, 1);
+socket.on('card_won', d => {
+    const idx = physicsCards.findIndex(c => c.uid === d.cardUID);
+    if(idx > -1) {
+        physicsCards[idx].dead = true;
+        spawnFlyingCard(physicsCards[idx], d.winnerId);
     }
-  });
-
-  isMyTurn = data.nextTurn === socket.id;
-  updateTurnUI();
 });
 
-socket.on("game_over", (d) => {
-  notify(d.message);
-  setTimeout(() => window.location.reload(), 2500);
+socket.on('new_turn', d => {
+    isMyTurn = d.nextTurn === socket.id;
+    currentTurnId = d.turnId;
+    hasPlayed = false;
+    document.getElementById('turn-badge').innerText = isMyTurn?"SUA VEZ!":"AGUARDE...";
+    if(isMyTurn) notify("Sua vez!");
 });
 
-socket.on("notification", (m) => notify(m));
-socket.on("login_error", (m) => notify(m));
+socket.on('game_over', d => { notify(d.message); setTimeout(()=>window.location.reload(), 3000); });
 
-// --- Exports ---
-window.doLogin = () => {
-  const u = document.getElementById("login-user").value;
-  const p = document.getElementById("login-pass").value;
-  if (u && p) socket.emit("login", { username: u, password: p });
+window.doLogin = () => { const u=document.getElementById('login-user').value; if(u) socket.emit('login',{username:u,password:'123'}); }; // Senha dummy pra teste
+window.openBetting = () => { 
+    const g=document.getElementById('bet-grid'); g.innerHTML=''; window.selectedBet=[];
+    myUser.collection.forEach(c => {
+        const d=document.createElement('div'); d.className='slot';
+        d.style.backgroundImage=`url(assets/card${c.cardId}.png)`; d.style.backgroundSize='cover';
+        d.onclick=()=>{
+            if(window.selectedBet.includes(c.uid)){ window.selectedBet=window.selectedBet.filter(i=>i!==c.uid); d.style.borderColor='transparent';}
+            else { if(window.selectedBet.length<5) {window.selectedBet.push(c.uid); d.style.borderColor='#00cec9';} }
+        };
+        g.appendChild(d);
+    });
+    document.querySelector('.active').classList.remove('active'); document.getElementById('screen-bet').classList.add('active');
 };
-
-window.openMenu = () => {
-  gameState = "MENU";
-  document.querySelector(".active").classList.remove("active");
-  document.getElementById("screen-menu").classList.add("active");
-};
-
-window.openBetting = () => {
-  const g = document.getElementById("bet-grid");
-  g.innerHTML = "";
-  window.selectedBet = [];
-
-  myUser.collection.forEach((c) => {
-    const d = document.createElement("div");
-    d.className = "slot";
-    d.style.backgroundImage = `url(assets/card${c.cardId}.png)`;
-    d.style.backgroundSize = "cover";
-    d.onclick = () => {
-      if (window.selectedBet.includes(c.uid)) {
-        window.selectedBet = window.selectedBet.filter((i) => i !== c.uid);
-        d.style.borderColor = "transparent";
-      } else {
-        window.selectedBet.push(c.uid);
-        d.style.borderColor = "#00cec9";
-      }
-    };
-    g.appendChild(d);
-  });
-
-  document.querySelector(".active").classList.remove("active");
-  document.getElementById("screen-bet").classList.add("active");
-};
-
 window.createMatch = () => {
-  const mode = document.getElementById("mode-select").value;
-  const rarity = document.getElementById("rarity-select").value || null;
-  const freeCount = parseInt(document.getElementById("free-count").value || "9", 10);
-
-  if (mode === "bet") {
-    if (!window.selectedBet || window.selectedBet.length <= 0) return notify("Selecione cartas!");
-    socket.emit("create_match", {
-      mode: "bet",
-      selectedCardUIDs: window.selectedBet,
-      rarityFilter: rarity,
-    });
-  } else {
-    socket.emit("create_match", {
-      mode: "free",
-      selectedCardUIDs: [],
-      freeCount,
-      rarityFilter: rarity,
-    });
-  }
+    if(![1,3,5].includes(window.selectedBet.length)) return notify("Escolha 1, 3 ou 5 cartas!");
+    socket.emit('create_match', window.selectedBet);
 };
-
-window.openGacha = () => socket.emit("open_booster");
 window.closeAll = () => window.location.reload();
-
-window.addEventListener("resize", () => {
-  width = window.innerWidth;
-  height = window.innerHeight;
-  canvas.width = width;
-  canvas.height = height;
-});
+window.addEventListener('resize', () => { width=window.innerWidth; height=window.innerHeight; canvas.width=width; canvas.height=height; });
 
 loop();

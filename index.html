@@ -6,7 +6,7 @@
   <title>Bafo Masters</title>
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Titan+One&family=Nunito:wght@400;700&display=swap');
-    :root { --primary: #6c5ce7; --glass: rgba(20,20,30,0.9); }
+    :root { --glass: rgba(20,20,30,0.9); }
     body { margin:0; overflow:hidden; background:#0f0c29; font-family:'Nunito',sans-serif; color:white; touch-action:none; user-select:none; }
 
     #ui-layer { position:absolute; top:0; left:0; width:100%; height:100%; pointer-events:none; z-index:10; }
@@ -16,7 +16,7 @@
     .screen { position:absolute; top:0; left:0; width:100%; height:100%; background:rgba(15,12,41,0.9); z-index:20; display:none; align-items:center; justify-content:center; pointer-events:auto; }
     .screen.active { display:flex; }
 
-    .panel { background:var(--glass); padding:30px; border-radius:20px; border:1px solid rgba(255,255,255,0.1); text-align:center; max-width:420px; width:90%; box-shadow:0 0 50px rgba(108,92,231,0.3); }
+    .panel { background:var(--glass); padding:28px; border-radius:20px; border:1px solid rgba(255,255,255,0.1); text-align:center; max-width:560px; width:92%; box-shadow:0 0 50px rgba(108,92,231,0.3); }
 
     .btn { background:linear-gradient(180deg, #a29bfe, #6c5ce7); border:none; padding:15px; width:100%; border-radius:12px; color:white; font-family:'Titan One'; font-size:1.1rem; margin-top:10px; cursor:pointer; box-shadow:0 5px 0 #4834d4; }
     .btn:active { transform:translateY(4px); box-shadow:0 1px 0 #4834d4; }
@@ -30,8 +30,16 @@
     .grid { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; max-height:240px; overflow-y:auto; padding:5px; }
     .slot { aspect-ratio:3/4; background:#333; border-radius:8px; border:2px solid transparent; cursor:pointer; }
 
+    /* coleção */
+    .collection-grid { display:grid; grid-template-columns:repeat(2, 1fr); gap:12px; max-height:360px; overflow:auto; padding:6px; }
+    .collection-card { background:rgba(0,0,0,0.25); border:2px solid #777; border-radius:14px; overflow:hidden; }
+    .collection-top { font-size:12px; padding:8px; opacity:.95; }
+    .collection-img { width:100%; aspect-ratio:3/4; background-size:cover; background-position:center; }
+    .counts { display:flex; justify-content:space-around; font-size:12px; margin: 10px 0; opacity:.9; }
+    .counts span { padding:6px 8px; background:rgba(0,0,0,0.2); border-radius:10px; }
+
     canvas { display:block; }
-    .small { font-size: 12px; opacity: .85; margin-top: 6px; }
+    .small { font-size:12px; opacity:.85; margin-top: 6px; }
   </style>
 </head>
 <body>
@@ -61,9 +69,11 @@
       <span>🪙 <span id="coins-display">0</span></span>
       <span>🃏 <span id="cards-display">0</span></span>
     </div>
+
     <button class="btn" onclick="window.openBetting()">⚔️ Jogar</button>
-    <button class="btn" onclick="window.openGacha()">🎁 PACOTE</button>
-    <button class="btn" style="background:#444; box-shadow:none;" onclick="window.closeAll()">SAIR</button>
+    <button class="btn" onclick="window.openCollection()">🗂️ Coleção</button>
+    <button class="btn" onclick="window.openGacha()">🎁 Pacote</button>
+    <button class="btn" style="background:#444; box-shadow:none;" onclick="window.closeAll()">Sair</button>
   </div>
 </div>
 
@@ -90,6 +100,32 @@
     <div class="grid" id="bet-grid"></div>
 
     <button class="btn" onclick="window.createMatch()">CRIAR / ENTRAR</button>
+    <button class="btn" style="background:#444; box-shadow:none;" onclick="window.openMenu()">VOLTAR</button>
+  </div>
+</div>
+
+<!-- COLEÇÃO -->
+<div id="screen-collection" class="screen">
+  <div class="panel">
+    <h2>COLEÇÃO</h2>
+
+    <select id="collection-filter" onchange="window.collectionFilterChanged()">
+      <option value="">Todas</option>
+      <option value="common">Common</option>
+      <option value="rare">Rare</option>
+      <option value="epic">Epic</option>
+      <option value="legend">Legend</option>
+    </select>
+
+    <div class="counts">
+      <span>Common: <b id="count-common">0</b></span>
+      <span>Rare: <b id="count-rare">0</b></span>
+      <span>Epic: <b id="count-epic">0</b></span>
+      <span>Legend: <b id="count-legend">0</b></span>
+    </div>
+
+    <div class="collection-grid" id="collection-grid"></div>
+
     <button class="btn" style="background:#444; box-shadow:none;" onclick="window.openMenu()">VOLTAR</button>
   </div>
 </div>
