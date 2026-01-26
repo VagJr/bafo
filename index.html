@@ -3,129 +3,224 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>Bafo Masters</title>
+  <title>Bafo Multiverse</title>
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Titan+One&family=Nunito:wght@400;700&display=swap');
-    :root { --glass: rgba(20,20,30,0.9); }
-    body { margin:0; overflow:hidden; background:#0f0c29; font-family:'Nunito',sans-serif; color:white; touch-action:none; user-select:none; }
+    
+    /* --- AMBIENTE MÁGICO --- */
+    :root { --glass: rgba(20,20,30,0.85); --gold: #f1c40f; }
+    
+    body { 
+        margin:0; overflow:hidden; 
+        /* Fundo estilo "Floresta Encantada Noturna" */
+        background: radial-gradient(circle at center, #4834d4 0%, #0f0c29 100%);
+        font-family:'Nunito',sans-serif; color:white; 
+        touch-action:none; user-select:none; 
+    }
 
+    /* Container dos Esporos de Luz */
+    #magic-layer { 
+        position:absolute; top:0; left:0; width:100%; height:100%; 
+        pointer-events:none; z-index:1; overflow:hidden; 
+    }
+
+    /* A partícula individual (gerada pelo JS) */
+    .spore {
+        position: absolute;
+        width: 4px; height: 4px;
+        background: #fff;
+        border-radius: 50%;
+        /* Efeito de brilho intenso (Glow) */
+        box-shadow: 
+            0 0 10px #fff, 
+            0 0 20px #a29bfe, 
+            0 0 40px #6c5ce7;
+        opacity: 0;
+        animation: floatUp linear infinite;
+    }
+
+    @keyframes floatUp {
+        0% { transform: translateY(110vh) scale(0.5); opacity: 0; }
+        20% { opacity: 0.8; }
+        50% { opacity: 1; }
+        80% { opacity: 0.8; }
+        100% { transform: translateY(-10vh) scale(1.2); opacity: 0; }
+    }
+
+    /* --- UI GERAL --- */
     #ui-layer { position:absolute; top:0; left:0; width:100%; height:100%; pointer-events:none; z-index:10; }
     .hud { padding:20px; display:flex; justify-content:space-between; pointer-events:auto; }
-    .badge { background:rgba(0,0,0,0.6); border:2px solid #555; padding:10px 20px; border-radius:30px; font-family:'Titan One'; text-shadow:0 2px 0 black; transition:0.3s; }
+    .badge { background:rgba(0,0,0,0.6); border:2px solid #555; padding:10px 20px; border-radius:30px; font-family:'Titan One'; text-shadow:0 2px 0 black; backdrop-filter:blur(5px); }
 
-    .screen { position:absolute; top:0; left:0; width:100%; height:100%; background:rgba(15,12,41,0.9); z-index:20; display:none; align-items:center; justify-content:center; pointer-events:auto; }
+    .screen { position:absolute; top:0; left:0; width:100%; height:100%; background:rgba(10,10,15,0.7); z-index:20; display:none; align-items:center; justify-content:center; pointer-events:auto; backdrop-filter: blur(8px); }
     .screen.active { display:flex; }
 
-    .panel { background:var(--glass); padding:28px; border-radius:20px; border:1px solid rgba(255,255,255,0.1); text-align:center; max-width:560px; width:92%; box-shadow:0 0 50px rgba(108,92,231,0.3); }
+    /* Painel de Vidro */
+    .panel { 
+        background:var(--glass); padding:20px; border-radius:20px; 
+        border:1px solid rgba(255,255,255,0.15); 
+        text-align:center; max-width:500px; width:90%; max-height:90vh; 
+        display:flex; flex-direction:column; 
+        box-shadow: 0 0 30px rgba(162, 155, 254, 0.3); 
+        position: relative;
+        overflow: hidden;
+    }
+    
+    /* Brilho sutil no topo do painel */
+    .panel::before {
+        content:''; position:absolute; top:0; left:0; width:100%; height:4px;
+        background: linear-gradient(90deg, transparent, #a29bfe, transparent);
+    }
 
-    .btn { background:linear-gradient(180deg, #a29bfe, #6c5ce7); border:none; padding:15px; width:100%; border-radius:12px; color:white; font-family:'Titan One'; font-size:1.1rem; margin-top:10px; cursor:pointer; box-shadow:0 5px 0 #4834d4; }
-    .btn:active { transform:translateY(4px); box-shadow:0 1px 0 #4834d4; }
+    .scroll-area { overflow-y:auto; flex:1; margin:10px 0; }
 
-    input, select { width:92%; padding:12px; margin:8px 0; border-radius:8px; border:none; background:#333; color:white; text-align:center; }
+    /* Botões Mágicos */
+    .btn { 
+        background:linear-gradient(180deg, #a29bfe, #6c5ce7); border:none; padding:15px; width:100%; 
+        border-radius:12px; color:white; font-family:'Titan One'; font-size:1rem; margin-top:8px; 
+        cursor:pointer; box-shadow:0 4px 0 #4834d4; transition:0.2s; text-shadow: 0 1px 2px rgba(0,0,0,0.3);
+    }
+    .btn:active { transform:translateY(4px); box-shadow:none; }
+    .btn-green { background:linear-gradient(180deg, #2ecc71, #27ae60); box-shadow:0 4px 0 #16a085; }
+    .btn-orange { background:linear-gradient(180deg, #f39c12, #d35400); box-shadow:0 4px 0 #c0392b; }
 
+    input { width:90%; padding:12px; margin:8px 0; border-radius:8px; border:none; background:#333; color:white; text-align:center; }
+
+    /* Toast Notification */
     #toast-area { position:absolute; top:100px; width:100%; display:flex; flex-direction:column; align-items:center; pointer-events:none; z-index:100; }
-    .toast { background:rgba(0,0,0,0.8); padding:10px 20px; border-radius:20px; margin-bottom:10px; border-left:4px solid gold; animation:pop 0.3s; }
+    .toast { background:rgba(0,0,0,0.9); padding:10px 20px; border-radius:20px; margin-bottom:10px; border-left:4px solid var(--gold); animation:pop 0.3s; box-shadow: 0 0 15px var(--gold); }
     @keyframes pop { from{transform:scale(0);} to{transform:scale(1);} }
 
-    .grid { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; max-height:240px; overflow-y:auto; padding:5px; }
-    .slot { aspect-ratio:3/4; background:#333; border-radius:8px; border:2px solid transparent; cursor:pointer; }
+    .grid { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; padding:5px; }
+    .slot { aspect-ratio:3/4; background:#333; border-radius:6px; border:2px solid transparent; cursor:pointer; position:relative; overflow:hidden; }
+    
+    /* Efeito ao selecionar carta na aposta */
+    .slot[style*="border-color"] { box-shadow: 0 0 15px #00cec9; transform: scale(0.95); transition: 0.2s; }
 
-    /* coleção */
-    .collection-grid { display:grid; grid-template-columns:repeat(2, 1fr); gap:12px; max-height:360px; overflow:auto; padding:6px; }
-    .collection-card { background:rgba(0,0,0,0.25); border:2px solid #777; border-radius:14px; overflow:hidden; }
-    .collection-top { font-size:12px; padding:8px; opacity:.95; }
-    .collection-img { width:100%; aspect-ratio:3/4; background-size:cover; background-position:center; }
-    .counts { display:flex; justify-content:space-around; font-size:12px; margin: 10px 0; opacity:.9; }
-    .counts span { padding:6px 8px; background:rgba(0,0,0,0.2); border-radius:10px; }
+    /* BOOSTER ANIMATION */
+    #booster-display { display:flex; justify-content:center; gap:10px; perspective: 1000px; min-height: 160px; align-items: center; }
+    .booster-card { 
+        width: 100px; height: 140px; 
+        background-size: cover; background-position: center; 
+        border-radius: 8px; border: 2px solid gold; 
+        box-shadow: 0 0 20px rgba(255, 215, 0, 0.8);
+        opacity: 0; transform: translateY(100px) rotateY(180deg);
+    }
+    .booster-card.reveal { animation: cardReveal 1.2s forwards cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+    
+    @keyframes cardReveal {
+        0% { opacity:0; transform: translateY(200px) rotateY(180deg) rotateZ(10deg); }
+        60% { opacity:1; transform: translateY(-30px) rotateY(0deg) rotateZ(-5deg); }
+        100% { transform: translateY(0) rotateY(0deg) rotateZ(0); }
+    }
 
-    canvas { display:block; }
-    .small { font-size:12px; opacity:.85; margin-top: 6px; }
+    /* Collection & Market */
+    .collection-grid { display:grid; grid-template-columns:repeat(3, 1fr); gap:8px; padding:6px; }
+    .collection-card { background:#222; border-radius:8px; overflow:hidden; position:relative; border:1px solid #444; transition: transform 0.1s; }
+    .collection-card:active { transform: scale(0.95); }
+    .collection-img { width:100%; aspect-ratio:3/4; background-size:cover; background-position:top; }
+    .collection-top { font-size:10px; padding:4px; text-overflow:ellipsis; white-space:nowrap; overflow:hidden; background:rgba(0,0,0,0.5); position:absolute; top:0; width:100%; }
+    .sell-btn { width:100%; background:#c0392b; color:white; border:none; font-size:10px; padding:6px; cursor:pointer; text-transform:uppercase; font-weight:bold; }
+    
+    .market-card { display:flex; align-items:center; background:#2c3e50; padding:10px; margin-bottom:8px; border-radius:8px; cursor:pointer; border:1px solid #34495e; transition:0.2s; }
+    .market-card:hover { border-color:var(--gold); transform:translateX(5px); }
+    .m-img { width:40px; height:56px; background-size:cover; border-radius:4px; margin-right:10px; flex-shrink:0; box-shadow: 0 2px 5px black; }
+    .m-info { text-align:left; flex:1; }
+    
+    canvas { display:block; position: relative; z-index: 5; }
   </style>
 </head>
 <body>
+
+<div id="magic-layer"></div>
+
 <canvas id="gameCanvas"></canvas>
 <div id="toast-area"></div>
 
 <div id="ui-layer">
   <div class="hud" id="game-hud" style="display:none;">
     <div id="turn-badge" class="badge">Aguarde...</div>
-    <button class="btn" style="width:auto; padding:8px 15px; margin:0;" onclick="window.openMenu()">Menu</button>
+    <button class="btn" style="width:auto; padding:5px 15px; margin:0; font-size:0.8rem;" onclick="window.openMenu()">Menu</button>
   </div>
 </div>
 
 <div id="screen-login" class="screen active">
   <div class="panel">
-    <h1 style="font-family:'Titan One'; color:#a29bfe;">BAFO MASTERS</h1>
-    <input id="login-user" placeholder="Usuário" />
-    <input id="login-pass" type="password" placeholder="Senha" />
-    <button class="btn" onclick="window.doLogin()">JOGAR</button>
+    <div style="font-size:3rem; margin-bottom:10px;">✨</div>
+    <h1 style="font-family:'Titan One'; color:#a29bfe; font-size: 2rem; margin:0; text-shadow:0 0 10px #6c5ce7;">BAFO<br>MULTIVERSE</h1>
+    <p style="font-size:12px; color:#aaa; letter-spacing:1px; margin-bottom:20px;">POKÉMON • MAGIC • LORCANA</p>
+    <input id="login-user" placeholder="Seu Nome de Jogador" />
+    <button class="btn" onclick="window.doLogin()">ENTRAR NO MUNDO</button>
   </div>
 </div>
 
 <div id="screen-menu" class="screen">
   <div class="panel">
-    <h2>MENU</h2>
-    <div style="display:flex; justify-content:space-around; margin-bottom:20px;">
-      <span>🪙 <span id="coins-display">0</span></span>
-      <span>🃏 <span id="cards-display">0</span></span>
+    <h2 style="color:#a29bfe; text-shadow:0 0 10px #6c5ce7;">BASE DE COMANDO</h2>
+    <div style="display:flex; justify-content:space-around; background:rgba(0,0,0,0.4); padding:15px; border-radius:15px; margin-bottom:15px; border:1px solid rgba(255,255,255,0.1);">
+      <div style="text-align:center;">
+          <div style="font-size:1.5rem;">🪙</div>
+          <div style="font-size:0.8rem; color:#aaa;">MOEDAS</div>
+          <b id="coins-display" style="color:gold; font-size:1.2rem;">0</b>
+      </div>
+      <div style="text-align:center;">
+          <div style="font-size:1.5rem;">🃏</div>
+          <div style="font-size:0.8rem; color:#aaa;">CARTAS</div>
+          <b id="cards-display" style="color:#fff; font-size:1.2rem;">0</b>
+      </div>
     </div>
 
-    <button class="btn" onclick="window.openBetting()">⚔️ Jogar</button>
-    <button class="btn" onclick="window.openCollection()">🗂️ Coleção</button>
-    <button class="btn" onclick="window.openGacha()">🎁 Pacote</button>
-    <button class="btn" style="background:#444; box-shadow:none;" onclick="window.closeAll()">Sair</button>
+    <div class="scroll-area" style="overflow:visible;"> <button class="btn" onclick="window.openBetting()">⚔️ Jogar (Apostar)</button>
+        <button class="btn btn-green" onclick="window.openMarket()">🏪 Mercado Global</button>
+        <button class="btn" onclick="window.openCollection()">🗂️ Minha Coleção</button>
+        <button class="btn btn-orange" onclick="window.buyBooster()">🎁 Abrir Pacote (500)</button>
+    </div>
+    <button class="btn" style="background:#444; box-shadow:none; margin-top:10px;" onclick="window.closeAll()">Sair</button>
+  </div>
+</div>
+
+<div id="screen-booster" class="screen">
+  <div class="panel" style="background: rgba(10, 10, 20, 0.95); border: 2px solid gold; box-shadow: 0 0 50px rgba(255,215,0,0.3);">
+    <h2 style="color:gold; text-shadow:0 0 20px gold; font-family:'Titan One'; font-size:1.5rem; letter-spacing:2px;">PACOTE ABERTO!</h2>
+    <div id="booster-display"></div>
+    <p style="font-size:11px; color:#aaa; margin-top:10px;">As cartas foram adicionadas à sua coleção.</p>
+    <button class="btn" style="margin-top:10px;" onclick="window.openMenu()">CONTINUAR</button>
   </div>
 </div>
 
 <div id="screen-bet" class="screen">
   <div class="panel">
-    <h2>PARTIDA</h2>
-
-    <select id="mode-select">
-      <option value="free">Modo Livre (sem apostar)</option>
-      <option value="bet">Modo Aposta (cartas do inventário)</option>
-    </select>
-
-    <select id="rarity-select">
-      <option value="">Raridade: Qualquer</option>
-      <option value="common">Common</option>
-      <option value="rare">Rare</option>
-      <option value="epic">Epic</option>
-      <option value="legend">Legend</option>
-    </select>
-
-    <input id="free-count" type="number" min="3" max="30" value="9" />
-
-    <div class="small">No modo aposta: selecione cartas abaixo.</div>
-    <div class="grid" id="bet-grid"></div>
-
-    <button class="btn" onclick="window.createMatch()">CRIAR / ENTRAR</button>
+    <h3>SELEÇÃO DE APOSTA</h3>
+    <div class="small" style="margin-bottom:10px; color:#aaa; font-size:12px;">Escolha 1, 3 ou 5 cartas para o duelo.</div>
+    <div class="scroll-area">
+        <div class="grid" id="bet-grid"></div>
+    </div>
+    <button class="btn" onclick="window.createMatch()">BUSCAR OPONENTE</button>
     <button class="btn" style="background:#444; box-shadow:none;" onclick="window.openMenu()">VOLTAR</button>
   </div>
 </div>
 
-<!-- COLEÇÃO -->
+<div id="screen-market" class="screen">
+  <div class="panel">
+    <h3>MERCADO GLOBAL</h3>
+    <p style="font-size:11px; color:#ccc; margin-top:-10px;">Compre cartas raras de outros jogadores.</p>
+    <div class="scroll-area" id="market-grid"></div>
+    <button class="btn" style="background:#444; box-shadow:none;" onclick="window.openMenu()">VOLTAR</button>
+  </div>
+</div>
+
 <div id="screen-collection" class="screen">
   <div class="panel">
-    <h2>COLEÇÃO</h2>
-
-    <select id="collection-filter" onchange="window.collectionFilterChanged()">
-      <option value="">Todas</option>
-      <option value="common">Common</option>
-      <option value="rare">Rare</option>
-      <option value="epic">Epic</option>
-      <option value="legend">Legend</option>
-    </select>
-
-    <div class="counts">
-      <span>Common: <b id="count-common">0</b></span>
-      <span>Rare: <b id="count-rare">0</b></span>
-      <span>Epic: <b id="count-epic">0</b></span>
-      <span>Legend: <b id="count-legend">0</b></span>
+    <h3>MINHA COLEÇÃO</h3>
+    <div style="font-size:10px; margin-bottom:5px; display:flex; justify-content:center; gap:15px; padding:5px; background:rgba(0,0,0,0.3); border-radius:10px;">
+        <span style="color:#bdc3c7">⚪ Common</span> 
+        <span style="color:#3498db">🔵 Rare</span> 
+        <span style="color:#9b59b6">🟣 Epic</span> 
+        <span style="color:#f1c40f">🟡 Legend</span>
     </div>
-
-    <div class="collection-grid" id="collection-grid"></div>
-
+    <div class="scroll-area">
+        <div class="collection-grid" id="collection-grid"></div>
+    </div>
     <button class="btn" style="background:#444; box-shadow:none;" onclick="window.openMenu()">VOLTAR</button>
   </div>
 </div>
