@@ -1,45 +1,100 @@
 <!DOCTYPE html>
 <html lang="pt-br">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Magic Bafo World</title>
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Titan+One&family=Nunito:wght@400;700&display=swap');
-        body { margin: 0; overflow: hidden; background: #1a0b2e; font-family: 'Nunito', sans-serif; color: white; touch-action: none; user-select: none; }
-        #ui-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 10; }
-        .top-hud { padding: 15px; display: flex; justify-content: space-between; pointer-events: auto; }
-        .currency { font-family: 'Titan One'; color: #ffd700; font-size: 1.2rem; background: rgba(0,0,0,0.5); padding: 5px 15px; border-radius: 20px; }
-        .modal { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%) scale(0.9); width: 85%; max-width: 350px; background: rgba(30, 30, 40, 0.95); border: 2px solid #555; border-radius: 20px; padding: 20px; text-align: center; opacity: 0; pointer-events: none; transition: 0.3s; display: none;}
-        .modal.active { transform: translate(-50%, -50%) scale(1); opacity: 1; pointer-events: auto; display: block; }
-        .btn { background: #6c5ce7; color: white; border: none; padding: 12px; width: 100%; border-radius: 12px; font-weight: bold; margin-top: 10px; cursor: pointer; pointer-events: auto; }
-        .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; max-height: 250px; overflow-y: auto; }
-        .grid-item { aspect-ratio: 3/4; background: #333; border-radius: 6px; border: 2px solid transparent; }
-        .grid-item.selected { border-color: #ffd700; }
-        canvas { display: block; }
-    </style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Bafo Masters</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Titan+One&family=Nunito:wght@400;700&display=swap');
+    :root { --primary: #6c5ce7; --glass: rgba(20,20,30,0.9); }
+    body { margin:0; overflow:hidden; background:#0f0c29; font-family:'Nunito',sans-serif; color:white; touch-action:none; user-select:none; }
+
+    #ui-layer { position:absolute; top:0; left:0; width:100%; height:100%; pointer-events:none; z-index:10; }
+    .hud { padding:20px; display:flex; justify-content:space-between; pointer-events:auto; }
+    .badge { background:rgba(0,0,0,0.6); border:2px solid #555; padding:10px 20px; border-radius:30px; font-family:'Titan One'; text-shadow:0 2px 0 black; transition:0.3s; }
+
+    .screen { position:absolute; top:0; left:0; width:100%; height:100%; background:rgba(15,12,41,0.9); z-index:20; display:none; align-items:center; justify-content:center; pointer-events:auto; }
+    .screen.active { display:flex; }
+
+    .panel { background:var(--glass); padding:30px; border-radius:20px; border:1px solid rgba(255,255,255,0.1); text-align:center; max-width:420px; width:90%; box-shadow:0 0 50px rgba(108,92,231,0.3); }
+
+    .btn { background:linear-gradient(180deg, #a29bfe, #6c5ce7); border:none; padding:15px; width:100%; border-radius:12px; color:white; font-family:'Titan One'; font-size:1.1rem; margin-top:10px; cursor:pointer; box-shadow:0 5px 0 #4834d4; }
+    .btn:active { transform:translateY(4px); box-shadow:0 1px 0 #4834d4; }
+
+    input, select { width:92%; padding:12px; margin:8px 0; border-radius:8px; border:none; background:#333; color:white; text-align:center; }
+
+    #toast-area { position:absolute; top:100px; width:100%; display:flex; flex-direction:column; align-items:center; pointer-events:none; z-index:100; }
+    .toast { background:rgba(0,0,0,0.8); padding:10px 20px; border-radius:20px; margin-bottom:10px; border-left:4px solid gold; animation:pop 0.3s; }
+    @keyframes pop { from{transform:scale(0);} to{transform:scale(1);} }
+
+    .grid { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; max-height:240px; overflow-y:auto; padding:5px; }
+    .slot { aspect-ratio:3/4; background:#333; border-radius:8px; border:2px solid transparent; cursor:pointer; }
+
+    canvas { display:block; }
+    .small { font-size: 12px; opacity: .85; margin-top: 6px; }
+  </style>
 </head>
 <body>
-    <canvas id="gameCanvas"></canvas>
-    <div id="ui-layer">
-        <div class="top-hud">
-            <div class="currency">🪙 <span id="coin-display">0</span></div>
-            <button class="btn" style="width:auto;" onclick="window.toggleMenu('menu-main')">☰</button>
-        </div>
+<canvas id="gameCanvas"></canvas>
+<div id="toast-area"></div>
+
+<div id="ui-layer">
+  <div class="hud" id="game-hud" style="display:none;">
+    <div id="turn-badge" class="badge">Aguarde...</div>
+    <button class="btn" style="width:auto; padding:8px 15px; margin:0;" onclick="window.openMenu()">Menu</button>
+  </div>
+</div>
+
+<div id="screen-login" class="screen active">
+  <div class="panel">
+    <h1 style="font-family:'Titan One'; color:#a29bfe;">BAFO MASTERS</h1>
+    <input id="login-user" placeholder="Usuário" />
+    <input id="login-pass" type="password" placeholder="Senha" />
+    <button class="btn" onclick="window.doLogin()">JOGAR</button>
+  </div>
+</div>
+
+<div id="screen-menu" class="screen">
+  <div class="panel">
+    <h2>MENU</h2>
+    <div style="display:flex; justify-content:space-around; margin-bottom:20px;">
+      <span>🪙 <span id="coins-display">0</span></span>
+      <span>🃏 <span id="cards-display">0</span></span>
     </div>
-    <div id="menu-main" class="modal active">
-        <h2>MAGIC BAFO</h2>
-        <button class="btn" onclick="window.openGacha()">🎁 Pacote (100)</button>
-        <button class="btn" onclick="window.openCollection()">🃏 Coleção</button>
-        <button class="btn" style="background:#444" onclick="window.toggleMenu('')">Fechar</button>
-    </div>
-    <div id="menu-collection" class="modal">
-        <h2>Apostar Carta</h2>
-        <div class="grid" id="collection-grid"></div>
-        <button class="btn" onclick="window.confirmMatch()">🔥 APOSTAR!</button>
-        <button class="btn" style="background:#444" onclick="window.toggleMenu('menu-main')">Voltar</button>
-    </div>
-    <script src="/socket.io/socket.io.js"></script>
-    <script src="game.js"></script>
+    <button class="btn" onclick="window.openBetting()">⚔️ Jogar</button>
+    <button class="btn" onclick="window.openGacha()">🎁 PACOTE</button>
+    <button class="btn" style="background:#444; box-shadow:none;" onclick="window.closeAll()">SAIR</button>
+  </div>
+</div>
+
+<div id="screen-bet" class="screen">
+  <div class="panel">
+    <h2>PARTIDA</h2>
+
+    <select id="mode-select">
+      <option value="free">Modo Livre (sem apostar)</option>
+      <option value="bet">Modo Aposta (cartas do inventário)</option>
+    </select>
+
+    <select id="rarity-select">
+      <option value="">Raridade: Qualquer</option>
+      <option value="common">Common</option>
+      <option value="rare">Rare</option>
+      <option value="epic">Epic</option>
+      <option value="legend">Legend</option>
+    </select>
+
+    <input id="free-count" type="number" min="3" max="30" value="9" />
+
+    <div class="small">No modo aposta: selecione cartas abaixo.</div>
+    <div class="grid" id="bet-grid"></div>
+
+    <button class="btn" onclick="window.createMatch()">CRIAR / ENTRAR</button>
+    <button class="btn" style="background:#444; box-shadow:none;" onclick="window.openMenu()">VOLTAR</button>
+  </div>
+</div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script src="game.js"></script>
 </body>
 </html>
