@@ -2,14 +2,15 @@
   "name": "bafo-online",
   "version": "7.0.0",
   "description": "Bafo Online v7 - Stable & Features (Render PostgreSQL DB)",
-  "main": "server.js",
+  "main": "server.cjs",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.cjs"
   },
   "dependencies": {
+    "@tcgdex/sdk": "^2.7.1",
     "express": "^4.19.2",
-    "socket.io": "^4.7.5",
+    "node-fetch": "^3.3.2",
     "pg": "^8.11.5",
-    "node-fetch": "^3.3.2"
+    "socket.io": "^4.7.5"
   }
 }

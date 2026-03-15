@@ -1,327 +1,953 @@
 <!DOCTYPE html>
 <html lang="pt-br">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>Bafo Multiverse</title>
-  <style>
-    @import url('https://fonts.googleapis.com/css2?family=Titan+One&family=Nunito:wght@400;700&display=swap');
-    @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@900&display=swap');
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"/>
+<title>Bafo Multiverse</title>
+<style>
+    @import url('https://fonts.googleapis.com/css2?family=Titan+One&family=Nunito:wght@400;700;900&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@700;900&display=swap');
     
-    :root { --glass: rgba(15, 15, 25, 0.95); --gold: #f1c40f; --neon-blue: #00cec9; --neon-purple: #a29bfe; }
-    body { margin:0; overflow:hidden; background: radial-gradient(circle at center, #2b0055 0%, #050510 100%); font-family:'Nunito',sans-serif; color:white; touch-action:none; user-select:none; }
+    /* RESET GLOBAL PARA MOBILE NÃO ESTOURAR */
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+    :root { 
+        --deep-space: #1a0b2e; --magic-gold: #ffd700; --magic-glow: #ffaa00;
+        --neon-blue: #00f3ff; --neon-purple: #bd00ff; --glass-panel: rgba(20, 10, 40, 0.85);
+        --gold: #f1c40f; --neon-green: #2ecc71;
+    }
+    body { margin: 0; overflow: hidden; background: radial-gradient(circle at center, #2b0055 0%, #090014 100%); font-family: 'Nunito', sans-serif; color: white; touch-action: none; user-select: none; -webkit-font-smoothing: antialiased; }
+    /* ===== FIX COLEÇÃO MOBILE: abas não são comidas pelo scroll ===== */
+
+/* 1) painel da coleção vira layout flex travado */
+#screen-collection .panel{
+  display:flex;
+  flex-direction:column;
+  height: 95svh;              /* mobile safe */
+  max-height: 95svh;
+}
+
+/* fallback pra browsers sem svh */
+@supports not (height: 1svh){
+  #screen-collection .panel{
+    height: 95vh;
+    max-height: 95vh;
+  }
+}
+
+/* 2) impede que a área scroll empurre os elementos do topo */
+#screen-collection .panel > *{
+  flex: 0 0 auto;
+}
+
+/* 3) scroll-area vira a única região que cresce e rola */
+#screen-collection .scroll-area{
+  flex: 1 1 auto;
+  min-height: 0;              /* CRÍTICO: permite scroll certo no flex */
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* 4) segurança extra: abas sempre ficam “presas” no topo */
+#screen-collection .binder-tabs{
+  flex: 0 0 auto;
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  background: rgba(0,0,0,0.35);
+  backdrop-filter: blur(8px);
+}
+
+    #bg-canvas { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 0; pointer-events: none; mix-blend-mode: screen; }
     
-    #bg-canvas { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 9999; pointer-events: none; }
-    #gameCanvas { display:block; position: relative; z-index: 5; }
-    #ui-layer { position:absolute; top:0; left:0; width:100%; height:100%; pointer-events:none; z-index:10; }
+    /* ESTILOS DA COLEÇÃO */
+    .binder-slot.rarity-common { border-color: #bdc3c7; box-shadow: inset 0 0 5px rgba(0,0,0,0.5); }
+    .binder-slot.rarity-rare { border-color: #0984e3; box-shadow: 0 0 10px rgba(9, 132, 227, 0.4); }
+    .binder-slot.rarity-epic { border-color: #9b59b6; box-shadow: 0 0 15px rgba(155, 89, 182, 0.6); animation: pulseEpic 3s infinite; }
+    .binder-slot.rarity-legend { border-color: #f1c40f; box-shadow: 0 0 25px rgba(241, 196, 15, 0.8); animation: shineLegend 2s infinite linear; background: linear-gradient(135deg, rgba(255,215,0,0.1), rgba(0,0,0,0.5)); }
+    @keyframes pulseEpic { 0%{box-shadow: 0 0 15px #9b59b6;} 50%{box-shadow: 0 0 25px #bd00ff;} 100%{box-shadow: 0 0 15px #9b59b6;} }
+    @keyframes shineLegend { 0% { border-color: #f1c40f; box-shadow: 0 0 20px #f1c40f; } 50% { border-color: #fff; box-shadow: 0 0 40px #ffaa00; } 100% { border-color: #f1c40f; box-shadow: 0 0 20px #f1c40f; } }
+
+    /* HUD E SCORE */
+    #score-board { position: absolute; top: 15%; width: 100%; display: flex; justify-content: center; gap: 20px; pointer-events: none; z-index: 20; text-shadow: 0 4px 10px black; }
+    .score-box { text-align: center; transition: transform 0.2s; }
+    .score-box.pop { transform: scale(1.5); }
+    .score-val { font-family: 'Titan One'; font-size: 2.5rem; color: white; display: block; line-height: 1; }
+    .score-label { font-family: 'Nunito'; font-size: 0.8rem; font-weight: 900; color: #aaa; text-transform: uppercase; }
+
+    .float-text { position: absolute; font-family: 'Titan One'; font-weight: 900; pointer-events: none; animation: floatUp 1.5s forwards ease-out; text-shadow: 2px 2px 0px #000; z-index: 1000; }
+    @keyframes floatUp { 0% { transform: translateY(0) scale(0.5); opacity: 0; } 20% { transform: translateY(-20px) scale(1.2); opacity: 1; } 100% { transform: translateY(-80px) scale(1); opacity: 0; } }
+
+    .filter-bar { display: flex; gap: 5px; margin: 10px 0; justify-content: center; flex-wrap: wrap; }
+    .filter-btn { background: rgba(0,0,0,0.5); border: 1px solid #555; color: #aaa; padding: 5px 12px; border-radius: 20px; font-size: 0.7rem; font-weight: bold; cursor: pointer; transition: 0.2s; }
+    .filter-btn:hover, .filter-btn.active { background: var(--neon-blue); color: #000; border-color: white; box-shadow: 0 0 10px var(--neon-blue); }
+
+    #gameCanvas { display: block; position: relative; z-index: 5; width: 100%; height: 100%; }
+    #ui-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 10; }
+    .hud { padding: 10px; display: flex; justify-content: space-between; align-items: flex-start; pointer-events: auto; }
+    .badge { background: rgba(0, 0, 0, 0.7); border: 2px solid var(--magic-gold); padding: 5px 15px; border-radius: 50px; font-family: 'Titan One'; font-size: 0.9rem; color: var(--magic-gold); box-shadow: 0 0 10px rgba(255, 215, 0, 0.3); backdrop-filter: blur(5px); }
+
+    #market-ticker { position: absolute; top: 15px; left: 50%; transform: translateX(-50%); background: linear-gradient(90deg, transparent, rgba(0,0,0,0.8), transparent); padding: 5px 10px; width: 90%; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-family: 'Nunito'; font-weight: 900; font-size: 0.8rem; z-index: 100; pointer-events: none; }
+
+    /* TELAS GERAIS - AJUSTE MOBILE: max-height dinâmico */
+    .screen { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(5, 0, 15, 0.85); z-index: 2000; display: none; align-items: center; justify-content: center; pointer-events: auto; backdrop-filter: blur(12px); animation: fadeIn 0.3s ease-out; }
+    .screen.active { display: flex; }
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    @keyframes scaleUp { from { transform: scale(0.8); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+
+    .panel { background: var(--glass-panel); padding: 20px; border-radius: 20px; border: 2px solid rgba(255, 255, 255, 0.1); box-shadow: 0 0 0 4px rgba(0,0,0,0.3), 0 0 40px rgba(189, 0, 255, 0.4); text-align: center; max-width: 500px; width: 95%; max-height: 95vh; display: flex; flex-direction: column; position: relative; overflow: hidden; animation: scaleUp 0.4s; }
+    .panel::after { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 4px; background: linear-gradient(90deg, transparent, var(--magic-gold), transparent); }
+    .scroll-area { overflow-y: auto; flex: 1; margin: 10px 0; padding: 5px; -webkit-overflow-scrolling: touch; }
+
+    /* BOTÕES */
+    .btn { background: linear-gradient(180deg, #a29bfe 0%, #6c5ce7 100%); border: none; padding: 12px; width: 100%; border-radius: 12px; color: white; font-family: 'Titan One'; font-size: 1rem; margin-top: 10px; cursor: pointer; position: relative; box-shadow: 0 4px 0 #4834d4, 0 5px 10px rgba(0,0,0,0.3); transition: 0.1s; text-transform: uppercase; letter-spacing: 1px; }
+    .btn:active { transform: translateY(4px); box-shadow: 0 0 0 #4834d4; }
+    .btn-green { background: linear-gradient(180deg, #2ecc71 0%, #27ae60 100%); box-shadow: 0 4px 0 #1e8449; }
+    .btn-green:active { box-shadow: 0 0 0 #1e8449; }
+    .btn-blue { background: linear-gradient(180deg, #00cec9 0%, #0984e3 100%); box-shadow: 0 4px 0 #076ba8; }
+    .btn-blue:active { box-shadow: 0 0 0 #076ba8; }
+    .btn-orange { background: linear-gradient(180deg, #f1c40f 0%, #d35400 100%); box-shadow: 0 4px 0 #a04000; }
+    .btn-orange:active { box-shadow: 0 0 0 #a04000; }
+
+    input, select { width: 100%; padding: 12px; margin: 5px 0; border-radius: 10px; border: 2px solid rgba(255,255,255,0.2); background: rgba(0,0,0,0.4); color: white; text-align: center; font-family: 'Nunito'; font-size: 1rem; font-weight: bold; transition: 0.3s; }
+    input:focus, select:focus { border-color: var(--neon-blue); outline: none; background: rgba(0,0,0,0.6); box-shadow: 0 0 15px rgba(0, 243, 255, 0.3); }
+
+    /* COLEÇÃO */
+    .binder-tabs { display: flex; width: 100%; margin-bottom: 10px; background: rgba(0,0,0,0.3); border-radius: 12px; padding: 4px; overflow-x: auto; }
+    .binder-tab { flex: 1; padding: 8px; border: none; background: transparent; color: #888; font-weight: 800; cursor: pointer; border-radius: 8px; transition: 0.3s; font-size: 0.8rem; white-space: nowrap; }
+    .binder-tab.active { color: white; background: rgba(255,255,255,0.1); text-shadow: 0 0 10px var(--neon-blue); }
     
-    .hud { padding:10px 20px; display:flex; justify-content:space-between; align-items:flex-start; pointer-events:auto; }
-    .badge { background:rgba(0,0,0,0.6); border:1px solid #555; padding:5px 15px; border-radius:30px; font-family:'Titan One'; font-size: 0.9rem; backdrop-filter:blur(5px); }
-    
-    .screen { position:absolute; top:0; left:0; width:100%; height:100%; background:rgba(5, 5, 10, 0.7); z-index:20; display:none; align-items:center; justify-content:center; pointer-events:auto; backdrop-filter: blur(4px); }
-    .screen.active { display:flex; }
-    .panel { background:var(--glass); padding:20px; border-radius:20px; border:1px solid rgba(255,255,255,0.1); text-align:center; max-width:500px; width:90%; max-height:90vh; display:flex; flex-direction:column; box-shadow: 0 0 30px rgba(162, 155, 254, 0.2); position: relative; overflow: hidden; }
-    .scroll-area { overflow-y:auto; flex:1; margin:10px 0; padding: 5px; }
+    #collection-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); gap: 8px; padding: 5px; }
+    .binder-slot { background: linear-gradient(135deg, rgba(255,255,255,0.05), rgba(255,255,255,0.01)); border-radius: 8px; padding: 5px; transition: transform 0.2s; cursor: pointer; border: 1px solid rgba(255,255,255,0.1); position: relative; }
+    .binder-slot:hover { transform: scale(1.05); z-index: 10; border-color: var(--neon-blue); background: rgba(255,255,255,0.1); }
+    .binder-card { width: 100%; aspect-ratio: 2.5/3.5; background-size: cover; background-position: center; border-radius: 4px; margin-bottom: 3px; box-shadow: 1px 1px 3px rgba(0,0,0,0.5); }
+    .binder-info { font-size: 0.6rem; display: flex; justify-content: space-between; color: #ddd; font-weight: bold; }
+    .b-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 65%; }
+    .b-count { color: var(--magic-gold); text-shadow: 0 0 5px orange; }
 
-    .btn { background:linear-gradient(135deg, #a29bfe, #6c5ce7); border:none; padding:12px; width:100%; border-radius:12px; color:white; font-family:'Titan One'; font-size:1rem; margin-top:8px; cursor:pointer; }
-    .btn:active { transform:translateY(2px); }
-    .btn-green { background:linear-gradient(135deg, #2ecc71, #27ae60); }
-    .btn-blue { background:linear-gradient(135deg, #00cec9, #0984e3); }
-    .btn-orange { background:linear-gradient(135deg, #f1c40f, #d35400); }
-    input, select { width:90%; padding:12px; margin:10px 0; border-radius:8px; border:none; background:#333; color:white; text-align:center; }
-
-    /* BANK UI */
-    .greek-panel { background: radial-gradient(circle at center, #2c3e50 0%, #000000 100%); border: 4px double var(--gold); border-radius: 4px; box-shadow: 0 0 40px rgba(241, 196, 15, 0.2), inset 0 0 60px rgba(0,0,0,0.8); position: relative; padding: 40px 30px; }
-    .greek-panel::before, .greek-panel::after { content: ''; position: absolute; top: 15px; bottom: 15px; width: 6px; background: linear-gradient(180deg, #b8860b, var(--gold), #fff, var(--gold), #b8860b); border-radius: 2px; box-shadow: 0 0 10px var(--gold); }
-    .greek-panel::before { left: 10px; } .greek-panel::after { right: 10px; }
-    .bank-header { font-family: 'Cinzel', serif; font-size: 2.2rem; color: var(--gold); letter-spacing: 5px; text-shadow: 0 2px 10px rgba(241, 196, 15, 0.6); border-bottom: 2px solid var(--gold); margin-bottom: 20px; padding-bottom: 10px; position: relative; }
-    .bank-header::after { content: '▼'; font-size: 0.8rem; position: absolute; bottom: -10px; left: 50%; transform: translateX(-50%); background: #000; padding: 0 10px; }
-    .temple-icon { font-size: 4rem; margin-bottom: 15px; filter: drop-shadow(0 0 15px var(--gold)); animation: floatLogo 3s ease-in-out infinite; }
-    .greek-box { border: 2px solid #555; border-image: linear-gradient(to right, var(--gold), transparent, var(--gold)) 1; background: rgba(0,0,0,0.4); padding: 20px; margin: 15px 0; }
-    .swap-row { display: flex; align-items: center; justify-content: center; gap: 10px; } .swap-row select { width: 100px; font-family:'Cinzel', serif; }
-
-    /* CURRENCY HUD */
-    .currency-row { display:flex; justify-content:space-around; background:rgba(0,0,0,0.3); padding:10px; border-radius:10px; margin-bottom:10px; width:100%; box-sizing:border-box;}
-    .curr-item { display:flex; flex-direction:column; align-items:center; }
-    .curr-val { font-size: 1rem; color: #fff; font-weight:bold; }
-    .curr-label { font-size:0.6rem; color:#aaa; text-transform:uppercase; }
-
-    /* MIXER */
-    .mixer-row { display:flex; align-items:center; margin:10px 0; }
-    .mixer-row label { width: 80px; text-align:right; margin-right:10px; font-size:0.8rem; }
-    .mixer-row input { flex:1; margin:0; }
-    .mixer-val { width: 40px; text-align:center; font-weight:bold; }
-
-    /* CARDS & GRID */
-    .grid { display:grid; grid-template-columns: repeat(auto-fill, minmax(90px, 1fr)); gap:10px; }
-    .grid-card { aspect-ratio: 2.5/3.5; background-color: #222; background-size: cover; background-position: center; border-radius: 8px; border: 2px solid #555; position: relative; cursor: pointer; }
-    .card-count { position: absolute; top: -5px; right: -5px; background: #00cec9; color: black; border-radius: 50%; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 0.8rem; border: 2px solid white; }
-
-    /* BOOSTER ANIMATION */
-    #booster-display { display:flex; justify-content:center; gap:15px; height:200px; align-items:center; perspective:1000px; }
-    .booster-card { width:110px; height:154px; position: relative; transform-style: preserve-3d; opacity:0; cursor: pointer; }
-    .booster-card .front { position: absolute; width: 100%; height: 100%; background-size: cover; border-radius: 8px; backface-visibility: hidden; border: 2px solid gold; box-shadow: 0 0 20px gold; transform: rotateY(0deg); }
-    .booster-card .back { position: absolute; width: 100%; height: 100%; background: #333; border-radius: 8px; backface-visibility: hidden; border: 2px solid #555; transform: rotateY(180deg); }
-
-    /* CHAT */
-    #chat-messages { height: 150px; overflow-y:auto; background:rgba(0,0,0,0.4); border-radius:8px; padding:5px; text-align:left; font-size:0.8rem; margin-bottom:10px; }
-    #search-timer { display:none; margin-bottom:10px; color:var(--neon-blue); font-family:monospace; animation: pulse 1s infinite; }
-    
-    /* LOGO */
-    .game-logo { margin-bottom: 20px; animation: floatLogo 4s ease-in-out infinite; }
-    .title-bafo { font-family: 'Titan One', cursive; font-size: 4rem; line-height: 0.9; background: linear-gradient(180deg, #fff9c4 0%, #f1c40f 40%, #d35400 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; -webkit-text-stroke: 2px #fff; display: block; }
-    .title-multi { font-family: 'Cinzel', serif; font-weight: 900; font-size: 1.2rem; letter-spacing: 5px; background: linear-gradient(90deg, #a29bfe, #00cec9, #fff, #00cec9, #a29bfe); background-size: 200%; -webkit-background-clip: text; -webkit-text-fill-color: transparent; animation: shimmer 3s linear infinite; display: block; margin-top: -5px; }
-    @keyframes floatLogo { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
-    @keyframes shimmer { to { background-position: 200% center; } }
-    @keyframes pulse { 0%{opacity:0.5} 50%{opacity:1} 100%{opacity:0.5} }
+    /* BANK */
+    .greek-panel { background: radial-gradient(circle at center, #2c3e50 0%, #000000 100%); border: 4px double var(--magic-gold); box-shadow: 0 0 50px rgba(255, 215, 0, 0.2); }
+    .bank-tabs { display: flex; width: 100%; margin-bottom: 10px; border-bottom: 2px solid #555; }
+    .tab-btn { flex: 1; background: transparent; border: none; color: #777; font-family: 'Cinzel', serif; font-size: 1rem; padding: 8px; cursor: pointer; border-bottom: 3px solid transparent; }
+    .tab-btn.active { color: var(--magic-gold); border-bottom: 3px solid var(--magic-gold); text-shadow: 0 0 10px gold; }
+    .bank-content { flex: 1; position: relative; display: none; flex-direction: column; align-items: center; width: 100%; height: 100%; }
+    .bank-content.active { display: flex; }
+    #vault-canvas { width: 100%; flex: 1; background: rgba(0,0,0,0.3); border-radius: 10px; border: 1px solid #444; touch-action: none; box-shadow: inset 0 0 30px #000; }
 
     /* INSPECTOR */
-    #card-inspector { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.95); z-index: 999; display: none; align-items: center; justify-content: center; perspective: 1000px; }
+    #card-inspector { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); z-index: 3000; display: none; flex-direction: column; align-items: center; justify-content: center; perspective: 1200px; transition: opacity 0.3s; padding: 20px; }
     #card-inspector.active { display: flex; }
-    #inspector-img { width: 85vw; max-width: 450px; height: 75vh; background-size: contain; background-repeat: no-repeat; background-position: center; border-radius: 15px; box-shadow: 0 0 50px rgba(255,255,255,0.2); transition: transform 0.1s; transform-style: preserve-3d; }
+    /* Ajuste mobile do inspector */
+    #inspector-img { width: 90vw; max-width: 300px; height: 45vh; background-size: contain; background-repeat: no-repeat; background-position: center; border-radius: 15px; box-shadow: 0 0 50px rgba(255,255,255,0.1); transition: transform 0.1s ease-out; transform-style: preserve-3d; margin-bottom: 15px; cursor: grab; }
+    #inspector-img:active { cursor: grabbing; }
+    #inspector-img.fullscreen { width: 95vw; height: 70vh; max-width: none; margin: 0; }
+    #inspector-data { text-align: center; color: white; background: rgba(255,255,255,0.1); padding: 15px; border-radius: 20px; backdrop-filter: blur(15px); width: 95%; max-width: 400px; border: 1px solid rgba(255,255,255,0.2); }
+    .sleeve-row { display: flex; gap: 10px; overflow-x: auto; padding: 10px; width: 100%; justify-content: flex-start; }
+    .sleeve-item { min-width: 60px; height: 90px; border: 2px solid #555; cursor: pointer; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 0.6rem; color: #aaa; background: #222; transition: 0.2s; flex-shrink: 0; }
+    .sleeve-item:hover { transform: scale(1.05); }
 
-    #toast-area { position:absolute; top:80px; width:100%; display:flex; flex-direction:column; align-items:center; pointer-events:none; z-index:100; }
-    .toast { background:rgba(0,0,0,0.9); padding:10px 20px; border-radius:20px; margin-bottom:10px; border: 1px solid var(--gold); animation:pop 0.3s; }
-    @keyframes pop { from{transform:scale(0);} to{transform:scale(1);} }
-  </style>
-</head>
-<body>
-
-<canvas id="bg-canvas"></canvas>
-<canvas id="gameCanvas"></canvas>
-<div id="toast-area"></div>
-
-<div id="card-inspector" onclick="window.closeInspector()">
-    <div id="inspector-img"></div>
-    <div style="position:absolute; bottom: 50px; color:#aaa; font-size:0.8rem;">Girar 3D</div>
-</div>
-
-<div id="ui-layer">
-  <div class="hud" id="game-hud" style="display:none;">
-    <div id="turn-badge" class="badge">Aguarde...</div>
-    <div class="badge" id="online-counter">Online: 0</div>
-    <button class="btn" style="width:auto; padding:5px 15px; font-size:0.8rem; margin:0;" onclick="window.openMenu()">Menu</button>
-  </div>
-</div>
-
-<div id="screen-login" class="screen active">
-  <div class="panel">
-    <div class="game-logo">
-        <span class="title-bafo">BAFO</span>
-        <span class="title-multi">MULTIVERSE</span>
-    </div>
-    <input id="login-user" placeholder="Nome de Mestre" />
-    <button class="btn" onclick="window.doLogin()">ENTRAR</button>
-  </div>
-</div>
-
-<div id="screen-menu" class="screen">
-  <div class="panel">
-    <h2>BASE</h2>
-    <div class="currency-row">
-      <div class="curr-item"><span class="curr-val" id="gold-display" style="color:var(--gold)">0</span><span class="curr-label">Gold</span></div>
-      <div class="curr-item"><span class="curr-val" id="mana-display" style="color:var(--neon-blue)">0</span><span class="curr-label">Mana</span></div>
-      <div class="curr-item"><span class="curr-val" id="essence-display" style="color:var(--neon-purple)">0</span><span class="curr-label">Essence</span></div>
-      <div class="curr-item"><span class="curr-val" id="cards-display">0</span><span class="curr-label">Cartas</span></div>
-    </div>
-    <div class="scroll-area">
-        <button class="btn" onclick="window.openBetting()">⚔️ Duelar</button>
-        <button class="btn btn-green" onclick="window.openMarket()">🏪 Mercado</button>
-        <button class="btn btn-blue" onclick="window.toggleChat()">💬 Chat</button>
-        <button class="btn btn-orange" style="border: 1px solid var(--gold);" onclick="window.openBank()">🏛️ BANK</button>
-        <button class="btn" style="background:#444;" onclick="window.openCollection()">🗂️ Coleção</button>
-        <button class="btn btn-orange" onclick="window.openBoosterMixer()">🎁 Criar Pacote</button>
-    </div>
-  </div>
-</div>
-
-<div id="screen-bank" class="screen">
-  <div class="panel greek-panel">
-    <div class="temple-icon">🏛️</div>
-    <div class="bank-header">BANCO</div>
-    <div class="greek-box">
-      <div style="font-size:0.85rem; color:#aaa; margin-bottom:10px;">CÂMBIO 1:1</div>
-      <div class="swap-row">
-        <select id="swap-from">
-          <option value="gold">🟡 Ouro</option>
-          <option value="mana">🔵 Mana</option>
-          <option value="essence">💜 Essência</option>
-        </select>
-        <span style="font-size:1.2rem;">➡️</span>
-        <select id="swap-to">
-          <option value="mana">🔵 Mana</option>
-          <option value="essence">💜 Essência</option>
-          <option value="gold">🟡 Ouro</option>
-        </select>
-      </div>
-      <input id="swap-amount" type="number" placeholder="Valor" value="100" />
-      <button class="btn btn-blue" style="font-family:'Cinzel', serif; border:1px solid var(--gold);" onclick="window.performSwap()">TROCAR</button>
-    </div>
-    <button class="btn" style="background:#444; box-shadow:none;" onclick="window.openMenu()">VOLTAR</button>
-  </div>
-</div>
-
-<div id="screen-booster-mix" class="screen">
-    <div class="panel">
-        <h3 style="color:var(--gold)">MULTIVERSE MIXER</h3>
-        <p style="font-size:0.8rem; color:#aaa;">Custo: 500. Ajuste o foco:</p>
-        <div class="mixer-row"><label style="color:var(--gold)">GOLD</label><input type="range" min="0" max="500" id="mix-gold" oninput="window.adjustMixer('gold', this.value)"><span class="mixer-val" id="val-gold">166</span></div>
-        <div class="mixer-row"><label style="color:var(--neon-blue)">MANA</label><input type="range" min="0" max="500" id="mix-mana" oninput="window.adjustMixer('mana', this.value)"><span class="mixer-val" id="val-mana">167</span></div>
-        <div class="mixer-row"><label style="color:var(--neon-purple)">ESSENCE</label><input type="range" min="0" max="500" id="mix-essence" oninput="window.adjustMixer('essence', this.value)"><span class="mixer-val" id="val-essence">167</span></div>
-        <button class="btn btn-green" onclick="window.confirmBoosterBuy()">INVOCAR</button>
-        <button class="btn" style="background:#444;" onclick="window.openMenu()">VOLTAR</button>
-    </div>
-</div>
-
-<div id="screen-chat" class="screen">
-    <div class="panel">
-        <h3 style="color:var(--neon-blue)">CHAT GLOBAL</h3>
-        <div id="chat-messages"></div>
-        <div style="display:flex; gap:5px;">
-            <input id="chat-input" placeholder="Mensagem..." style="margin:0; text-align:left;">
-            <button class="btn" style="width:auto; margin:0;" onclick="window.sendChat()">➤</button>
-        </div>
-        <button class="btn" style="background:#444;" onclick="window.toggleChat()">FECHAR</button>
-    </div>
-</div>
-
-<div id="screen-booster" class="screen">
-  <div class="panel">
-    <h2 style="color:gold;">PACOTE ABERTO!</h2>
-    <div id="booster-display"></div>
-    <button class="btn" onclick="window.openMenu()">GUARDAR</button>
-  </div>
-</div>
-
-<div id="screen-ranking" class="screen">
-    <div class="panel">
-        <h3>RANKING GLOBAL</h3>
-        <div class="scroll-area" id="ranking-list"></div>
-        <button class="btn" style="background:#444;" onclick="window.openMenu()">VOLTAR</button>
-    </div>
-</div>
-
-<div id="screen-trade-lobby" class="screen">
-    <div class="panel">
-        <h3>SALA DE TROCAS</h3>
-        <button class="btn" onclick="window.createTrade()">CRIAR SALA</button>
-        <button class="btn btn-blue" onclick="window.joinTrade()">ENTRAR COM ID</button>
-        <button class="btn" style="background:#444;" onclick="window.openMenu()">VOLTAR</button>
-    </div>
-</div>
-
-<div id="screen-trade-room" class="screen">
-    <div class="panel">
-        <h3>NEGOCIAÇÃO</h3>
-        <div style="font-size:0.8rem; color:#aaa;">ID: <span id="trade-id-display">...</span></div>
-        <div id="trade-status" style="margin-top:5px; color:gold;">Aguardando...</div>
-        <div class="trade-table">
-            <div id="my-offer-slot" class="trade-slot">Sua Oferta</div>
-            <div style="font-size:20px;">⇄</div>
-            <div id="their-offer-slot" class="trade-slot">Oponente</div>
-        </div>
-        <div style="text-align:left; font-size:0.8rem;">Selecione oferta:</div>
-        <div class="scroll-area" style="height:150px; background:rgba(0,0,0,0.2);">
-            <div class="grid" id="trade-collection"></div>
-        </div>
-        <div style="display:flex; gap:10px;">
-            <button class="btn btn-green" onclick="window.confirmTrade()">CONFIRMAR</button>
-            <button class="btn" style="background:#444;" onclick="window.openMenu()">SAIR</button>
-        </div>
-    </div>
-</div>
-
-<div id="screen-bet" class="screen">
-  <div class="panel">
-    <h3>APOSTAS</h3>
-    <div id="search-timer">Buscando: 0s</div>
-    <p style="font-size:0.8rem; color:#aaa;">Toque para adicionar (x1, x2...)</p>
-    <div class="scroll-area"><div class="grid" id="bet-grid"></div></div>
-    <div style="display:flex; gap:10px;">
-        <button class="btn" onclick="window.createMatch()">JOGAR</button>
-        <button class="btn" style="background:#444;" onclick="window.openMenu()">VOLTAR</button>
-    </div>
-  </div>
-</div>
-
-<div id="screen-market" class="screen">
-  <div class="panel">
-    <h3>MERCADO (GOLD)</h3>
-    <div class="scroll-area"><div class="grid" id="market-grid"></div></div>
-    <button class="btn" style="background:#444;" onclick="window.openMenu()">VOLTAR</button>
-  </div>
-</div>
-
-<div id="screen-collection" class="screen">
-  <div class="panel">
-    <h3>COLEÇÃO</h3>
-    <div class="scroll-area"><div class="grid" id="collection-grid"></div></div>
-    <button class="btn" style="background:#444;" onclick="window.openMenu()">VOLTAR</button>
-  </div>
-</div>
-
-<script src="/socket.io/socket.io.js"></script>
-<script src="game.js"></script>
-<script>
-    const bgCvs = document.getElementById('bg-canvas'); const bgCtx = bgCvs.getContext('2d');
-    let bgW, bgH, spores=[];
-    let sporeMode = 'NORMAL'; // NORMAL, GATHER, EXPLODE
-
-    window.addEventListener('resize', rsz); rsz();
-    function rsz(){ bgW=window.innerWidth; bgH=window.innerHeight; bgCvs.width=bgW; bgCvs.height=bgH; initS(); }
+    /* ICONS E BADGES */
+    .btn-round { width: 45px; height: 45px; border-radius: 50%; border: 2px solid rgba(255,255,255,0.2); background: rgba(0,0,0,0.6); color: white; backdrop-filter: blur(5px); font-size: 1.2rem; box-shadow: 0 4px 10px rgba(0,0,0,0.5); cursor: pointer; display: flex; align-items: center; justify-content: center; transition: 0.2s; margin-bottom: 5px; }
+    .btn-round:active { transform: scale(0.9); border-color: var(--magic-gold); background: rgba(255, 215, 0, 0.2); }
+    .counter-badge { position: absolute; top: -8px; right: -8px; background: #ff0055; color: white; border-radius: 50%; width: 20px; height: 20px; font-size: 0.7rem; display: flex; align-items: center; justify-content: center; border: 2px solid white; z-index: 5; font-weight: bold; box-shadow: 0 2px 5px black; }
+    .float-controls { position: absolute; right: 10px; bottom: 200px; display: flex; flex-direction: column; gap: 10px; z-index: 100; }
     
-    function initS(){ 
-        spores=[]; 
-        for(let i=0; i<150; i++) spores.push({
-            x:Math.random()*bgW, 
-            y:Math.random()*bgH, 
-            s:Math.random()*2, 
-            vy:Math.random()*0.5+0.1,
-            vx:0
-        }); 
+    #context-menu { position: absolute; display: none; flex-direction: column; background: rgba(30, 30, 40, 0.95); border: 1px solid var(--magic-gold); border-radius: 10px; z-index: 5000; padding: 5px; box-shadow: 0 5px 20px rgba(0,0,0,0.8); backdrop-filter: blur(5px); animation: fadeIn 0.1s; }
+    .ctx-item { padding: 10px 15px; cursor: pointer; color: white; border-bottom: 1px solid #444; font-size: 0.85rem; font-family: 'Nunito'; }
+    .ctx-item:hover { background: var(--neon-blue); color: #000; border-radius: 5px; }
+
+   /* MARKET (GRID 3 COLUNAS + SCROLL LIMITADO) */
+
+/* garante que a área do mercado role sem quebrar o painel */
+#screen-market .panel{
+  display:flex;
+  flex-direction:column;
+  height: 95svh;
+  max-height: 95svh;
+}
+@supports not (height: 1svh){
+  #screen-market .panel{
+    height: 95vh;
+    max-height: 95vh;
+  }
+}
+
+#screen-market .scroll-area{
+  flex: 1 1 auto;
+  min-height: 0;                 /* CRÍTICO */
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* ✅ AQUI é o que faltava: container vira grid de 3 colunas */
+#market-grid{
+  display:grid !important;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  padding: 6px;
+  align-content: start;
+}
+
+#market-my-grid{
+  display:grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  padding: 6px;
+  align-content: start;
+}
+
+/* --- GRID DE APOSTAS E SELEÇÃO (COMPACTO) --- */
+#bet-grid {
+    display: grid;
+    /* Cartas menores (60px) para caber 4-5 por linha no mobile */
+    grid-template-columns: repeat(auto-fill, minmax(65px, 1fr)); 
+    gap: 8px; 
+    padding: 10px;
+    width: 100%;
+}
+
+.bet-card {
+    aspect-ratio: 2.5/3.5;
+    background-color: #1a1a1a;
+    background-size: cover;
+    background-position: center;
+    border-radius: 6px;
+    border: 2px solid #444;
+    position: relative;
+    cursor: pointer;
+    transition: transform 0.1s, border-color 0.1s;
+    box-shadow: 2px 2px 5px rgba(0,0,0,0.5);
+}
+
+/* Efeito ao Selecionar */
+.bet-card.selected {
+    border-color: #00cec9; /* Azul Neon */
+    box-shadow: 0 0 10px #00cec9;
+    transform: scale(0.9);
+    filter: brightness(1.2);
+}
+
+/* Indicador de check visual */
+.bet-card.selected::after {
+    content: '✔';
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 206, 201, 0.4);
+    color: white;
+    font-size: 1.5rem;
+    text-shadow: 0 2px 4px black;
+    font-weight: bold;
+}
+/* cards */
+.market-card{
+  background: rgba(255,255,255,0.05);
+  border: 1px solid #444;
+  border-radius: 8px;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  padding: 5px;
+  overflow:hidden;
+}
+
+/* se você renderiza a carta com .binder-card dentro do market, isso padroniza */
+.market-card .binder-card{
+  width: 100%;
+  aspect-ratio: 2.5/3.5;
+  background-size: cover;
+  background-position: center;
+  border-radius: 6px;
+  margin-bottom: 4px;
+}
+
+.m-info{
+  text-align:center;
+  margin-top: 4px;
+  width:100%;
+  font-size: 0.65rem;
+}
+
+
+    /* BOOSTER */
+    #booster-display { display:flex; justify-content:center; gap:10px; height:200px; align-items:center; perspective:1000px; flex-wrap: wrap; }
+    .booster-card { width:100px; height:140px; position: relative; transform-style: preserve-3d; opacity:0; cursor: pointer; transition: transform 0.5s; margin-bottom: 10px; }
+    .booster-card:hover { transform: scale(1.1) !important; z-index: 10; }
+    .booster-card .front { position: absolute; width: 100%; height: 100%; background-color: #000; background-size: cover; background-position: center; border-radius: 8px; backface-visibility: hidden; border: 2px solid gold; transform: rotateY(0deg); display: flex; align-items: center; justify-content: center; box-shadow: 0 0 20px rgba(255, 215, 0, 0.3); }
+    .booster-card .front img { width: 100%; height: 100%; object-fit: cover; border-radius: 6px; }
+    .booster-card .back { position: absolute; width: 100%; height: 100%; background: radial-gradient(circle, #444, #111); border-radius: 8px; backface-visibility: hidden; transform: rotateY(180deg); border: 2px solid #666; display: flex; align-items: center; justify-content: center; }
+    .booster-card .back::after { content: '?'; font-family: 'Titan One'; font-size: 2rem; color: #333; }
+    
+    #chat-messages { height: 120px; overflow-y:auto; background:rgba(0,0,0,0.3); border-radius:12px; padding:10px; text-align:left; font-size:0.8rem; margin-bottom:10px; border: 1px solid rgba(255,255,255,0.1); }
+    
+    .ranking-row { display: flex; justify-content: space-between; padding: 10px; border-bottom: 1px solid rgba(255,255,255,0.1); transition: 0.2s; font-size: 0.9rem; }
+    .rank-switch { background: transparent; border: 1px solid #555; color:#777; padding:5px 10px; border-radius:20px; cursor:pointer; font-size: 0.8rem; }
+    .rank-switch.active { background: var(--magic-gold); color:black; border-color:white; font-weight:bold; }
+    
+    .game-logo { margin-bottom: 20px; animation: floatLogo 6s ease-in-out infinite; position: relative; }
+    .title-bafo { font-family: 'Titan One', cursive; font-size: 3.5rem; line-height: 0.8; background: linear-gradient(180deg, #fff9c4 0%, #f1c40f 40%, #e67e22 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; filter: drop-shadow(0 4px 0px #b86e00); display: block; transform: rotate(-3deg); }
+    .title-multi { font-family: 'Cinzel', serif; font-weight: 900; font-size: 1rem; letter-spacing: 5px; background: linear-gradient(90deg, #a29bfe, #00cec9, #fff, #00cec9, #a29bfe); background-size: 200%; -webkit-background-clip: text; -webkit-text-fill-color: transparent; animation: shimmer 3s linear infinite; display: block; margin-top: 5px; text-shadow: 0 0 10px rgba(0, 206, 201, 0.5); }
+    
+    @keyframes floatLogo { 0%, 100% { transform: translateY(0) rotate(0deg); } 50% { transform: translateY(-15px) rotate(1deg); } }
+    @keyframes shimmer { to { background-position: 200% center; } }
+    
+    #toast-area { position:absolute; top:70px; width:100%; display:flex; flex-direction:column; align-items:center; pointer-events:none; z-index:3000; padding: 0 20px; }
+    .toast { background: rgba(10, 5, 20, 0.95); padding: 10px 20px; border-radius: 50px; margin-bottom: 10px; border: 2px solid var(--magic-gold); color: var(--magic-gold); font-weight: bold; box-shadow: 0 5px 15px rgba(0,0,0,0.5); animation: pop 0.4s; font-size: 0.9rem; text-align: center; }
+    @keyframes pop { from{transform:scale(0) translateY(20px);} to{transform:scale(1) translateY(0);} }
+/* CONTEXT MENU */
+    #context-menu { 
+        position: fixed; 
+        display: none; 
+        flex-direction: column; 
+        background: rgba(30, 30, 40, 0.98); 
+        border: 1px solid var(--magic-gold); 
+        border-radius: 10px; 
+        z-index: 5000; 
+        padding: 5px; 
+        box-shadow: 0 5px 20px rgba(0,0,0,0.8); 
+        min-width: 150px;
+    }
+    .ctx-item { 
+        padding: 12px 15px; 
+        cursor: pointer; 
+        color: white; 
+        border-bottom: 1px solid #444; 
+        font-size: 0.9rem; 
+        font-family: 'Nunito'; 
+        transition: 0.2s;
+    }
+    .ctx-item:hover { background: var(--neon-blue); color: black; }
+    .ctx-item:last-child { border-bottom: none; }
+
+    /* ANIMAÇÃO DE PING */
+    .ping-anim {
+        position: absolute;
+        width: 20px; height: 20px;
+        border-radius: 50%;
+        border: 3px solid white;
+        transform: translate(-50%, -50%);
+        pointer-events: none;
+        animation: pingRipple 1s ease-out forwards;
+        box-shadow: 0 0 10px rgba(255,255,255,0.5);
+        z-index: 2000;
+    }
+    @keyframes pingRipple {
+        0% { width: 0px; height: 0px; opacity: 1; border-width: 5px; }
+        100% { width: 100px; height: 100px; opacity: 0; border-width: 0px; }
     }
 
-    // CONTROLE EXTERNO PARA LOADING
-    window.sporeGather = () => { sporeMode = 'GATHER'; };
-    window.sporeExplode = () => { sporeMode = 'EXPLODE'; setTimeout(() => sporeMode = 'NORMAL', 1000); };
+    /* BADGES DE CONTADORES NO CARD */
+    .counter-badge {
+        position: absolute;
+        top: -10px;
+        right: -10px;
+        background: #e74c3c;
+        color: white;
+        border: 2px solid white;
+        border-radius: 50%;
+        width: 24px;
+        height: 24px;
+        font-size: 0.8rem;
+        font-weight: bold;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        box-shadow: 0 2px 5px black;
+        z-index: 5;
+    }
+    /* MENU 3D RESPONSIVO */
+    .city-viewport { position: relative; width: 100%; height: 50vh; min-height: 300px; max-height: 550px; margin-top: 10px; border-radius: 20px; overflow: hidden; background: radial-gradient(circle at 50% 120%, #4a0072 0%, #1a0b2e 50%, #000 100%); box-shadow: inset 0 0 50px rgba(0,0,0,0.9), 0 0 0 2px rgba(255, 255, 255, 0.1); perspective: 1200px; }
+    .city-platform { position: absolute; top: 50%; left: 50%; width: 120%; height: 120%; transform: translate(-50%, -50%) rotateX(40deg) scale(0.9); background: linear-gradient(rgba(0, 243, 255, 0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(0, 243, 255, 0.05) 1px, transparent 1px); background-size: 40px 40px; border-radius: 50%; box-shadow: 0 0 100px rgba(189, 0, 255, 0.2); pointer-events: none; }
+    .city-viewport::after { content:''; position:absolute; bottom:0; left:0; width:100%; height:30%; background: linear-gradient(to top, rgba(0,0,0,0.8), transparent); pointer-events: none; }
+    
+    .district { position: absolute; display: flex; flex-direction: column; align-items: center; justify-content: center; transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1); cursor: pointer; z-index: 10; }
+    .b-card { width: 80px; height: 80px; background: rgba(255, 255, 255, 0.05); backdrop-filter: blur(8px); border: 1px solid rgba(255,255,255,0.2); border-radius: 12px; box-shadow: 0 15px 35px rgba(0,0,0,0.5), inset 0 0 20px rgba(255,255,255,0.05); display: flex; align-items: center; justify-content: center; position: relative; transform-style: preserve-3d; }
+    .b-icon { font-size: 2.2rem; filter: drop-shadow(0 5px 5px rgba(0,0,0,0.5)); transition: transform 0.3s; z-index: 2; }
+    .b-label { margin-top: 5px; font-family: 'Titan One', sans-serif; font-size: 0.6rem; color: white; text-shadow: 0 2px 4px black; background: rgba(0,0,0,0.6); padding: 2px 8px; border-radius: 20px; border: 1px solid var(--glow-color); box-shadow: 0 4px 10px rgba(0,0,0,0.5); opacity: 0.9; transform: translateY(0); transition: 0.3s; }
+    .district:hover { transform: translateY(-10px) scale(1.1); z-index: 100; }
+    .district:hover .b-card { background: rgba(255, 255, 255, 0.15); border-color: var(--glow-color); box-shadow: 0 0 30px var(--glow-color); }
 
-    function anim(){ 
-        bgCtx.clearRect(0,0,bgW,bgH); 
-        
-        spores.forEach(p=>{ 
-            if(sporeMode === 'NORMAL') {
-                p.y-=p.vy; 
-                p.x += (Math.random()-0.5)*0.2;
-                if(p.y<0) p.y=bgH; 
-            }
-            else if(sporeMode === 'GATHER') {
-                // Vai para o centro
-                let dx = (bgW/2) - p.x;
-                let dy = (bgH/2) - p.y;
-                p.x += dx * 0.05 + (Math.random()-0.5)*10; // Vibrar
-                p.y += dy * 0.05 + (Math.random()-0.5)*10;
-            }
-            else if(sporeMode === 'EXPLODE') {
-                // Sai do centro
-                let dx = p.x - (bgW/2);
-                let dy = p.y - (bgH/2);
-                // Se estiver muito perto do centro (pós gather), dá um push aleatório
-                if(Math.abs(dx) < 10) dx = (Math.random()-0.5)*100;
-                if(Math.abs(dy) < 10) dy = (Math.random()-0.5)*100;
-                
-                p.x += dx * 0.2;
-                p.y += dy * 0.2;
-            }
+    .d-portal { top: 50%; left: 50%; transform: translate(-50%, -50%); --glow-color: var(--neon-blue); z-index: 20; }
+    .d-portal .b-card { width: 100px; height: 100px; border-radius: 50%; }
+    .d-portal:hover { transform: translate(-50%, -60%) scale(1.1); }
+    .d-castle { top: 5%; left: 5%; --glow-color: var(--gold); }
+    .d-arena { top: 5%; right: 5%; --glow-color: #e74c3c; }
+    .d-market { top: 50%; left: 2%; transform: translateY(-50%); --glow-color: #2ecc71; }
+    .d-market:hover { transform: translateY(-60%) scale(1.1); }
+    .d-bank { top: 50%; right: 2%; transform: translateY(-50%); --glow-color: #f1c40f; }
+    .d-bank:hover { transform: translateY(-60%) scale(1.1); }
+    .d-collection { bottom: 5%; left: 10%; --glow-color: #9b59b6; }
+    .d-social { bottom: 5%; right: 10%; --glow-color: #3498db; }
 
-            bgCtx.fillStyle='#00cec9'; 
-            bgCtx.globalAlpha=Math.random(); 
-            bgCtx.beginPath(); 
-            bgCtx.arc(p.x,p.y,p.s,0,Math.PI*2); 
-            bgCtx.fill(); 
-        }); 
-        requestAnimationFrame(anim); 
-    } 
-    anim();
-</script>
+    .hud-strip { position: absolute; top: 10px; left: 50%; transform: translateX(-50%); display: flex; gap: 15px; background: rgba(0,0,0,0.6); padding: 5px 15px; border-radius: 30px; border: 1px solid rgba(255,255,255,0.1); z-index: 50; pointer-events: auto; }
+    .hud-btn { font-size: 1rem; cursor: pointer; transition: 0.2s; opacity: 0.8; display:flex; flex-direction:column; align-items:center; gap:2px; }
+    .hud-btn span { font-size:0.4rem; font-weight:900; color:white; text-transform:uppercase; }
+    .hud-btn:hover { transform: scale(1.1); opacity: 1; text-shadow: 0 0 10px white; }
+
+    .b-pack-card { width: 90px; height: 120px; background: linear-gradient(135deg, #2c3e50, #000); border: 3px solid var(--magic-gold); border-radius: 10px; position: relative; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 30px rgba(255, 215, 0, 0.4), inset 0 0 20px rgba(0,0,0,0.8); overflow: hidden; animation: packFloat 4s ease-in-out infinite; }
+    .b-pack-texture { position: absolute; inset: 0; background-image: repeating-linear-gradient(45deg, rgba(255,255,255,0.05) 0px, rgba(255,255,255,0.05) 2px, transparent 2px, transparent 10px); opacity: 0.5; }
+    .b-pack-seal { position: absolute; bottom: 10px; width: 110%; background: var(--magic-gold); color: black; font-family: 'Titan One'; font-size: 0.5rem; text-align: center; transform: rotate(-5deg); box-shadow: 0 2px 5px black; }
+    @keyframes packFloat { 0%, 100% { transform: translateY(0) rotate(0deg); filter: brightness(1); } 50% { transform: translateY(-10px) rotate(2deg); filter: brightness(1.3); } }
+
+    /* ESTILOS DA COLEÇÃO */
+    .collection-header {
+        background: rgba(0, 0, 0, 0.6);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 12px;
+        padding: 10px;
+        margin-bottom: 10px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .set-stats {
+        text-align: left;
+        font-size: 0.7rem;
+        color: #aaa;
+    }
+
+    .set-stats b {
+        color: var(--gold);
+        font-size: 0.9rem;
+    }
+
+    /* Slot Vazio (Missing Card) */
+    .binder-slot.missing {
+        background: rgba(0, 0, 0, 0.3);
+        border: 2px dashed #444;
+        opacity: 0.7;
+        filter: grayscale(100%);
+        position: relative;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .binder-slot.missing .binder-card {
+        background: none !important;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .missing-number {
+        font-family: 'Titan One', cursive;
+        font-size: 1.5rem;
+        color: rgba(255, 255, 255, 0.1);
+        z-index: 0;
+    }
+
+    .missing-label {
+        position: absolute;
+        bottom: 5px;
+        font-size: 0.5rem;
+        color: #666;
+        text-transform: uppercase;
+    }
+
+    /* --- MEDIA QUERY MOBILE (AJUSTES FINAIS) --- */
+    @media (max-width: 600px), (max-height: 700px) {
+        .title-bafo { font-size: 3rem !important; }
+        .b-card { width: 65px; height: 65px; }
+        .b-icon { font-size: 1.8rem; }
+        .d-portal .b-card { width: 85px; height: 85px; }
+        .b-pack-card { width: 70px; height: 95px; }
+        .panel { padding: 15px; border-radius: 15px; }
+        .hud { padding: 5px; }
+        .badge { padding: 3px 10px; font-size: 0.7rem; }
+        #collection-grid { grid-template-columns: repeat(auto-fill, minmax(70px, 1fr)); }
+        .float-controls { bottom: 160px; right: 5px; }
+        .btn-round { width: 40px; height: 40px; font-size: 1rem; }
+        .city-viewport { height: 45vh; min-height: 250px; }
+    }
+</style>
+</head>
+<body>
+   <audio id="audio-intro" src="intro.mp3" preload="auto"></audio>
+    <audio id="audio-bgm" src="bgm.mp3" loop preload="auto"></audio>
+
+    <div id="volume-widget" style="position:fixed; top:15px; right:15px; z-index:9999; display:flex; flex-direction:column; align-items:flex-end;">
+        <button class="btn-round" onclick="window.toggleVolumePanel()" style="width:35px; height:35px; font-size:1rem; background:rgba(0,0,0,0.7); border:1px solid rgba(255,255,255,0.3); cursor:pointer;">🎵</button>
+        <div id="volume-panel" style="display:none; background:rgba(10, 5, 20, 0.95); padding:10px; border-radius:12px; border:1px solid #00cec9; margin-top:5px; width:150px; box-shadow:0 0 20px rgba(0,0,0,0.8);">
+            <div style="display:flex; align-items:center; gap:5px; margin-bottom:5px; color:white; font-size:0.7rem;">
+                <span style="width:25px; font-weight:bold;">MUS</span>
+                <input type="range" min="0" max="1" step="0.1" value="0.5" oninput="window.updateMusicVol(this.value)" style="flex:1; margin:0; cursor:pointer;">
+            </div>
+            <div style="display:flex; align-items:center; gap:5px; color:white; font-size:0.7rem;">
+                <span style="width:25px; font-weight:bold;">SFX</span>
+                <input type="range" min="0" max="1" step="0.1" value="0.5" oninput="window.updateFXVol(this.value)" style="flex:1; margin:0; cursor:pointer;">
+            </div>
+        </div>
+    </div>
+
+    <div class="screen active" id="screen-title" style="background: radial-gradient(circle at center, #1a0b2e 0%, #000 100%); z-index: 5000;">
+        <div class="sparkles"></div> <div class="panel title-panel" style="background:transparent; border:none; box-shadow:none; max-width:100%;">
+            <div class="game-logo mega bounce-enter" id="intro-logo-container">
+                <span class="title-bafo">BAFO</span>
+                <span class="title-multi">MULTIVERSE</span>
+            </div>
+            <p class="subtitle-magic" style="margin-top:20px; color:#aaa; font-style:italic; font-size: 0.9rem;">A Fenda abriu... o destino aguarda.</p>
+            <button class="btn btn-orange btn-start" onclick="window.startTitleScreen()" style="margin-top:40px; font-size:1.2rem; padding:15px; box-shadow:0 0 30px rgba(243, 156, 18, 0.4); border:2px solid white; animation: pulse 2s infinite; cursor:pointer;">✨ TOCAR PARA ENTRAR ✨</button>
+            <div class="tap-hint" style="margin-top:20px; font-size:0.6rem; color:rgba(255,255,255,0.5);">v3.2 - Mobile Update</div>
+        </div>
+    </div>
+
+    <canvas id="bg-canvas"></canvas>
+    <canvas id="gameCanvas"></canvas>
+    <div id="toast-area"></div>
+    <div id="market-ticker">CARREGANDO ECONOMIA...</div>
+
+    <div id="context-menu">
+        <div class="ctx-item" onclick="ctxAction('tap')">🔄 Virar/Desvirar</div>
+        <div class="ctx-item" onclick="ctxAction('flip')">🌑 Face Down/Up</div>
+        <div class="ctx-item" onclick="ctxAction('counter', 1)">➕ Marcador +1/+1</div>
+        <div class="ctx-item" onclick="ctxAction('counter', -1)">➖ Marcador -1/-1</div>
+        <div class="ctx-item" onclick="ctxAction('hand')">✋ Devolver p/ Mão</div>
+    </div>
+
+    <div id="card-inspector" onclick="if(event.target===this)window.closeInspector()">
+        <div id="inspector-img" onclick="event.stopPropagation(); window.toggleInspectorFullscreen()"></div>
+        <div id="inspector-data" onclick="event.stopPropagation()"></div>
+        <div class="sleeve-row" id="inspector-controls" onclick="event.stopPropagation()" style="display:none; background:rgba(0,0,0,0.8); border-radius:10px; margin-top:10px;">
+            <div class="sleeve-item" onclick="window.buySleeve('neon')" style="border-color:#00cec9">NEON<br/>500g</div>
+            <div class="sleeve-item" onclick="window.buySleeve('gold')" style="border-color:#f1c40f">GOLD<br/>1000g</div>
+            <div class="sleeve-item" onclick="window.buySleeve('void')" style="border-color:#6c5ce7">VOID<br/>2000g</div>
+            <div class="sleeve-item" onclick="window.buySleeve('red')" style="border-color:#e74c3c">RED<br/>300g</div>
+        </div>
+    </div>
+
+    <div id="ui-layer">
+        <div id="score-board" style="display:none;">
+            <div class="score-box" id="sb-p1"><span class="score-val" style="color:var(--neon-blue)">0</span><span class="score-label">VOCÊ</span></div>
+            <div class="score-box"><span class="score-val" style="font-size:1.5rem; color:#555">VS</span></div>
+            <div class="score-box" id="sb-p2"><span class="score-val" style="color:#e74c3c">0</span><span class="score-label">RIVAL</span></div>
+        </div>
+        <div class="hud" id="game-hud" style="display:none;">
+            <div class="badge" id="turn-badge">...</div>
+            <div class="badge" id="online-counter" style="color:var(--neon-blue); border-color:var(--neon-blue);">Online: 0</div>
+            <button class="btn" onclick="window.openMenu()" style="width:auto; padding:5px 15px; margin:0; font-size:0.7rem;">Menu</button>
+        </div>
+    </div>
+
+    <div class="screen" id="screen-tabletop" style="background: radial-gradient(circle, #20202a, #000);">
+        <div style="width:100%; height:100%; display:flex; flex-direction:column; position:relative;">
+            <div id="table-opponent" style="height:12%; background:rgba(255,255,255,0.05); border-bottom:2px solid #444; display:flex; align-items:center; justify-content:space-between; padding:0 10px; font-size: 0.8rem;">
+                <div style="color:#aaa;">Aguardando...</div>
+            </div>
+            <div id="table-board" style="flex:1; position:relative; overflow:hidden; touch-action: none;">
+                <div style="position:absolute; width:100%; height:100%; background-image: radial-gradient(#333 1px, transparent 1px); background-size: 20px 20px; opacity:0.1; pointer-events:none;"></div>
+                <div style="position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); opacity:0.05; pointer-events:none; font-size:3rem; font-family:'Titan One'; color:white;">MESA</div>
+            </div>
+            <div class="float-controls">
+                <button class="btn-round" onclick="window.tableDraw()" title="Comprar">📥</button>
+                <button class="btn-round" onclick="window.tableUntapAll()" title="Desvirar">☀</button>
+                <button class="btn-round" onclick="window.createToken()" title="Token">🤖</button>
+                <button class="btn-round" onclick="window.tableDice()" title="Dado">🎲</button>
+                <button class="btn-round" onclick="window.tableLife(1)" style="border-color:#e74c3c; color:#e74c3c;">❤️+</button>
+                <button class="btn-round" onclick="window.tableLife(-1)" style="border-color:#e74c3c; color:#e74c3c;">❤️-</button>
+            </div>
+            <div style="height:140px; background:rgba(0,0,0,0.8); border-top:2px solid var(--neon-blue); display:flex; flex-direction:column; backdrop-filter:blur(5px);">
+                <div style="display:flex; justify-content:space-between; padding:5px 10px; background:rgba(0,243,255,0.1); font-size:0.7rem; font-weight:bold;">
+                    <span style="color:var(--gold)">HP: <span id="table-hp">20</span></span>
+                    <span style="color:#aaa;">Deck: <span id="table-deck-count">60</span></span>
+                </div>
+                <div id="table-hand" style="flex:1; display:flex; overflow-x:auto; gap:-20px; padding:10px; align-items:center;"></div>
+            </div>
+            <button onclick="window.openMenu()" style="position:absolute; top:10px; left:10px; background:#e74c3c; border:none; color:white; border-radius:50%; width:30px; height:30px; z-index:300; font-weight:bold; box-shadow:0 0 10px red;">X</button>
+        </div>
+    </div>
+
+    <div class="screen" id="screen-decks">
+        <div class="panel">
+            <h3 style="color:var(--neon-blue); font-family:'Titan One'; font-size:1.2rem;">MEUS DECKS</h3>
+            <div class="scroll-area" id="deck-list-content"></div>
+            <div style="display:flex; gap:10px; margin-top:10px;">
+                <input id="join-table-id" placeholder="ID da Mesa"/>
+                <button class="btn btn-blue" onclick="window.joinTableInput()">ENTRAR</button>
+            </div>
+            <button class="btn" onclick="window.openMenu()" style="background: linear-gradient(#555, #333); box-shadow:0 5px 0 #222;">VOLTAR</button>
+        </div>
+    </div>
+
+    <div class="screen" id="screen-deckbuilder">
+        <div class="panel" style="height:95vh; width:95%; max-width:500px; display:flex; flex-direction:column;">
+            <div style="display:flex; gap:5px;">
+                <input id="deck-name-input" placeholder="Nome do Deck" style="flex:2"/>
+                <select id="deck-format-input" style="flex:1"><option value="standard">Standard</option><option value="commander">Commander</option><option value="casual">Casual</option></select>
+            </div>
+            <div style="font-size:0.7rem; color:#aaa; margin-bottom:5px; display:flex; justify-content:space-between;">
+                <span>Cartas: <span id="deck-count-main" style="color:var(--gold)">0</span></span>
+            </div>
+            <div style="flex:1; overflow-y:auto; background:rgba(0,0,0,0.3); border-radius:12px; margin-bottom:5px; border:1px solid rgba(255,255,255,0.1);">
+                <div style="font-size:0.7rem; color:#777; padding:5px; text-align:center;">DECK ATUAL</div>
+                <div class="grid" id="builder-deck" style="padding:5px;"></div>
+            </div>
+            <div style="flex:1; overflow-y:auto; background:rgba(0,0,0,0.3); border-radius:12px; border:1px solid rgba(255,255,255,0.1);">
+                <div style="font-size:0.7rem; color:#777; padding:5px; text-align:center;">SUA COLEÇÃO</div>
+                <div class="grid" id="builder-collection" style="padding:5px;"></div>
+            </div>
+            <div style="display:flex; gap:10px; margin-top:5px;">
+                <button class="btn btn-green" onclick="saveDeck()">SALVAR</button>
+                <button class="btn" onclick="window.openDecks()" style="background:linear-gradient(#e74c3c, #c0392b); box-shadow:0 5px 0 #922b21;">CANCELAR</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="screen" id="screen-login">
+        <div class="panel" style="background: rgba(10,5,20,0.95);">
+            <div class="game-logo"><span class="title-bafo">BAFO</span><span class="title-multi">MULTIVERSE</span></div>
+            <p style="color:#aaa; font-size:0.9rem; margin-bottom:20px;">Entre no mundo mágico das cartas colecionáveis!</p>
+            <input id="login-user" placeholder="Nome de Mestre" style="font-size:1.2rem; padding:15px;">
+            <button class="btn btn-green" onclick="window.doLogin()" style="font-size:1.2rem;">JOGAR</button>
+        </div>
+    </div>
+
+    <div class="screen" id="screen-menu">
+        <div class="panel" style="background: rgba(15, 5, 25, 0.95); border: 1px solid #444;">
+            <div style="display:flex; justify-content:space-between; align-items:center; width:100%; margin-bottom:10px;">
+                <div style="text-align:left;">
+                    <div style="font-family:'Titan One'; color:white; font-size:1.2rem; line-height:1;">BASE</div>
+                    <div style="font-size:0.6rem; color:#aaa; font-weight:bold;">NÍVEL <span id="hud-level" style="color:var(--neon-blue)">1</span></div>
+                </div>
+                <div style="flex:1; margin:0 10px; max-width:150px;">
+                    <div style="display:flex; justify-content:space-between; font-size:0.5rem; color:#ccc; margin-bottom:2px;">
+                        <span>XP</span> <span><span id="hud-xp-curr">0</span>/<span id="hud-xp-max">100</span></span>
+                    </div>
+                    <div style="height:6px; background:#333; border-radius:3px; overflow:hidden;">
+                        <div id="hud-xp-bar" style="width:0%; height:100%; background:linear-gradient(90deg, #00cec9, #0984e3);"></div>
+                    </div>
+                </div>
+            </div>
+            
+            <div id="global-goal-widget" style="background:linear-gradient(90deg, #e67e22, #d35400); padding:8px; border-radius:10px; margin-bottom:10px; box-shadow:0 0 10px rgba(230, 126, 34, 0.4); border:1px solid #fff;">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <span style="font-weight:bold; color:white; font-size: 0.8rem;">🌎 META DA COMUNIDADE</span>
+                    <span style="font-size:0.6rem; background:black; padding:2px 5px; border-radius:4px;">RECOMPENSA: BOOSTER</span>
+                </div>
+                <div id="goal-desc" style="font-size:0.7rem; color:#fff; margin:3px 0;">...</div>
+                <div style="background:rgba(0,0,0,0.5); height:6px; border-radius:4px; overflow:hidden;">
+                    <div id="goal-bar" style="width:0%; height:100%; background:#fff;"></div>
+                </div>
+                <div style="text-align:right; font-size:0.6rem; color:white;" id="goal-stats">0 / 0</div>
+            </div>
+
+            <div style="display:flex; justify-content:space-around; background:rgba(255,255,255,0.05); padding:8px; border-radius:12px; margin-bottom:10px; width:100%;">
+                <div style="text-align:center;"><div id="gold-display" style="color:gold; font-weight:900; font-size: 0.9rem;">0</div><div style="font-size:0.5rem; color:#aaa;">OURO</div></div>
+                <div style="text-align:center;"><div id="mana-display" style="color:var(--neon-blue); font-weight:900; font-size: 0.9rem;">0</div><div style="font-size:0.5rem; color:#aaa;">MANA</div></div>
+                <div style="text-align:center;"><div id="essence-display" style="color:var(--neon-purple); font-weight:900; font-size: 0.9rem;">0</div><div style="font-size:0.5rem; color:#aaa;">ESSÊNCIA</div></div>
+                <div style="width:1px; background:#444;"></div>
+                <div style="text-align:center;"><div id="elo-display" style="color:orange; font-weight:900; font-size: 0.9rem;">1000</div><div style="font-size:0.5rem; color:#aaa;">DUELO</div></div>
+                <div style="text-align:center;"><div id="market-score-display" style="color:#2ecc71; font-weight:900; font-size: 0.9rem;">0</div><div style="font-size:0.5rem; color:#aaa;">MERCADO</div></div>
+                <div style="text-align:center;"><div id="collection-power-display" style="color:#9b59b6; font-weight:900; font-size: 0.9rem;">0</div><div style="font-size:0.5rem; color:#aaa;">PODER</div></div>
+            </div>
+
+            <div class="scroll-area" style="overflow: visible; display:flex; align-items:center;">
+                <div class="city-viewport">
+                    <div class="city-platform"></div>
+                    <div class="hud-strip">
+                        <div class="hud-btn" onclick="window.openMissions()" title="Missões">🎯<span>Missões</span></div>
+                        <div class="hud-btn" onclick="window.openHistory()" title="Diário">📜<span>Diário</span></div>
+                        <div class="hud-btn" onclick="window.openRanking()" title="Ranking">🏆<span>Rank</span></div>
+                    </div>
+                    <div class="district d-castle" onclick="window.openDecks()"><div class="b-card"><div class="b-icon">🏰</div></div><div class="b-label">TABLETOP</div></div>
+                    <div class="district d-arena" onclick="window.openBetting()"><div class="b-card"><div class="b-icon">⚔️</div></div><div class="b-label">RANKED</div></div>
+                    <div class="district d-portal" onclick="window.openBoosterMixer()"><div class="b-pack-card"><div class="b-pack-texture"></div><div class="b-icon">🎁</div><div class="b-pack-seal">MULTIVERSE</div></div><div class="b-label" style="background:var(--magic-gold); color:white; border:none; box-shadow: 0 0 15px var(--magic-gold);">ABRIR PACOTE</div></div>
+                    <div class="district d-market" onclick="window.openMarket()"><div class="b-card"><div class="b-icon">⚖️</div></div><div class="b-label">MERCADO</div></div>
+                    <div class="district d-bank" onclick="window.openBank()"><div class="b-card"><div class="b-icon">🏛️</div></div><div class="b-label">BANCO</div></div>
+                    <div class="district d-collection" onclick="window.openCollection()"><div class="b-card"><div class="b-icon">📚</div></div><div class="b-label">COLEÇÃO</div></div>
+                    <div class="district d-social" onclick="window.toggleChat()"><div class="b-card"><div class="b-icon">💬</div></div><div class="b-label">SOCIAL</div></div>
+                </div>
+            </div>
+            <p style="font-size:0.6rem; color:#666; margin-top:5px; font-style:italic;">Bem-vindo a Neo-Arcadia, Viajante.</p>
+        </div>
+    </div>
+
+    <div class="screen" id="screen-ranking">
+        <div class="panel">
+            <h3 style="color:var(--gold); font-family:'Cinzel'; font-size:1.5rem;">LÍDERES</h3>
+            <div class="rank-tabs">
+                <button class="rank-switch active" onclick="window.switchRank('elo', this)">DUELISTA</button>
+                <button class="rank-switch" onclick="window.switchRank('market', this)">MERCADOR</button>
+                <button class="rank-switch" onclick="window.switchRank('power', this)">COLECIONADOR</button>
+            </div>
+            <div class="scroll-area" id="ranking-list" style="background:rgba(0,0,0,0.3); padding:10px; border-radius:10px;"></div>
+            <button class="btn" onclick="window.openMenu()" style="background:#444;">VOLTAR</button>
+        </div>
+    </div>
+
+    <div class="screen" id="screen-bank">
+        <div class="panel greek-panel">
+            <div style="font-family:'Cinzel'; font-size:2rem; color:var(--gold); border-bottom:2px solid var(--gold); margin-bottom:15px; text-shadow:0 0 10px gold;">BANCO</div>
+            <div class="bank-tabs"><button class="tab-btn active" onclick="window.switchBankTab('exchange')">CÂMBIO</button><button class="tab-btn" onclick="window.switchBankTab('vault')">COFRE</button></div>
+            <div class="bank-content active" id="view-exchange">
+                <div style="margin-top:15px; width:100%;">
+                    <p style="color:#aaa; font-style:italic; font-size: 0.9rem;">Converta suas riquezas místicas.</p>
+                    <div style="display:flex; gap:5px; justify-content:center; align-items:center; margin: 15px 0;">
+                        <select id="swap-from" style="flex:1; font-size:0.8rem;"><option value="gold">🟡 Ouro</option><option value="mana">🔵 Mana</option><option value="essence">💜 Essência</option></select>
+                        <span style="font-size:1.2rem;">➡️</span>
+                        <select id="swap-to" style="flex:1; font-size:0.8rem;"><option value="mana">🔵 Mana</option><option value="essence">💜 Essência</option><option value="gold">🟡 Ouro</option></select>
+                    </div>
+                    <input id="swap-amount" placeholder="Quantidade" type="number" value="100">
+                    <button class="btn btn-blue" onclick="window.performSwap()">REALIZAR TROCA</button>
+                </div>
+            </div>
+            <div class="bank-content" id="view-vault"><canvas id="vault-canvas"></canvas></div>
+            <button class="btn" onclick="window.openMenu()" style="background:#444; margin-top:auto;">SAIR</button>
+        </div>
+    </div>
+
+    <div class="screen" id="screen-collection">
+  <div class="panel">
+    <div class="binder-tabs">
+      <button class="binder-tab active" id="tab-mtg" onclick="window.switchBinderTab('mtg')">MAGIC</button>
+      <button class="binder-tab" id="tab-pokemon" onclick="window.switchBinderTab('pokemon')">POKEMON</button>
+      <button class="binder-tab" id="tab-lorcana" onclick="window.switchBinderTab('lorcana')">LORCANA</button>
+    </div>
+
+    <!-- ✅ NOVO: Navegação de EDIÇÕES (SETS) -->
+    <div id="set-nav" style="display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:10px;">
+      <button class="btn-round" style="margin:0;" onclick="window.prevSet()">⬅️</button>
+      <div style="flex:1; text-align:center;">
+        <div id="set-title" style="font-family:'Titan One'; font-size:0.9rem; color:var(--gold); text-shadow:0 0 10px rgba(255,215,0,0.3);">SET</div>
+        <div id="set-subtitle" style="font-size:0.6rem; color:#aaa; font-weight:900;">...</div>
+      </div>
+      <button class="btn-round" style="margin:0;" onclick="window.nextSet()">➡️</button>
+    </div>
+
+    <div id="collection-mastery" style="background:rgba(0,0,0,0.4); padding:10px; border-radius:10px; margin-bottom:10px;">
+      <div style="display:flex; justify-content:space-between; font-size:0.7rem; color:#aaa; margin-bottom:5px;">
+        <span id="set-name-display">GERAL</span>
+        <span id="set-progress-text">0/0</span>
+      </div>
+      <div style="height:8px; background:#222; border-radius:5px; overflow:hidden;">
+        <div id="set-progress-bar" style="width:0%; height:100%; background:linear-gradient(90deg, #bd00ff, #00cec9);"></div>
+      </div>
+      <div style="font-size:0.6rem; text-align:center; margin-top:5px; color:gold;">Complete para ganhar Sleeves!</div>
+    </div>
+
+    <div style="display:flex; gap:5px; justify-content:center; flex-wrap:wrap; margin:10px 0;">
+      <input id="collection-search" placeholder="Buscar..." style="width:70%; max-width:320px; padding:8px;" oninput="window.setCollectionSearch(this.value)">
+    </div>
+
+    <div class="filter-bar">
+      <button class="filter-btn active" onclick="window.filterCollection('all', this)">TODAS</button>
+      <button class="filter-btn" onclick="window.filterCollection('common', this)" style="border-bottom: 2px solid #bdc3c7">COMUM</button>
+      <button class="filter-btn" onclick="window.filterCollection('rare', this)" style="border-bottom: 2px solid #0984e3">RARA</button>
+      <button class="filter-btn" onclick="window.filterCollection('epic', this)" style="border-bottom: 2px solid #9b59b6">EPIC</button>
+      <button class="filter-btn" onclick="window.filterCollection('legend', this)" style="border-bottom: 2px solid #f1c40f">LENDÁRIA</button>
+    </div>
+
+    <div class="scroll-area">
+      <div id="collection-grid"></div>
+    </div>
+
+    <button class="btn" onclick="window.openMenu()" style="background:#444;">VOLTAR</button>
+  </div>
+</div>
+
+
+    <div class="screen" id="screen-booster-mix">
+        <div class="panel">
+            <h3 style="color:var(--gold); font-family:'Titan One'; text-shadow:0 0 10px gold; font-size: 1.2rem;">PACOTE MÍSTICO</h3>
+            <p style="font-size:0.7rem; color:#ccc;">Misture recursos para atrair cartas de diferentes mundos.</p>
+            <div style="background:rgba(0,0,0,0.3); padding:10px; border-radius:15px; margin: 10px 0;">
+                <div style="display:flex; align-items:center; margin-bottom:10px;"><label style="width:60px; color:var(--gold); font-weight:bold; font-size:0.8rem;">GOLD</label><input id="mix-gold" max="500" min="0" oninput="window.adjustMixer('gold', this.value)" type="range"/><span id="val-gold" style="width:30px; font-weight:bold; font-size:0.8rem;">166</span></div>
+                <div style="display:flex; align-items:center; margin-bottom:10px;"><label style="width:60px; color:var(--neon-blue); font-weight:bold; font-size:0.8rem;">MANA</label><input id="mix-mana" max="500" min="0" oninput="window.adjustMixer('mana', this.value)" type="range"/><span id="val-mana" style="width:30px; font-weight:bold; font-size:0.8rem;">167</span></div>
+                <div style="display:flex; align-items:center;"><label style="width:60px; color:var(--neon-purple); font-weight:bold; font-size:0.8rem;">ESSENCE</label><input id="mix-essence" max="500" min="0" oninput="window.adjustMixer('essence', this.value)" type="range"/><span id="val-essence" style="width:30px; font-weight:bold; font-size:0.8rem;">167</span></div>
+            </div>
+            <button class="btn btn-green" onclick="window.confirmBoosterBuy()" style="font-size:1.1rem;">INVOCAR CARTAS (500)</button>
+            <button class="btn" onclick="window.openMenu()" style="background:#444;">VOLTAR</button>
+        </div>
+    </div>
+
+    <div class="screen" id="screen-trade">
+        <div class="panel">
+            <h2 style="color:var(--neon-blue); font-family:'Titan One'; font-size:1.5rem;">TROCA P2P</h2>
+            <p style="color:#aaa; font-size: 0.9rem;">Convide um jogador via Chat ou Lista Online.</p>
+            <button class="btn" onclick="window.openMenu()" style="background:#444;">VOLTAR</button>
+        </div>
+    </div>
+
+    <div class="screen" id="screen-trade-room">
+        <div class="panel" style="width:98%; max-width:800px; padding: 10px;">
+            <h3 style="color:var(--neon-blue); font-size: 1.2rem; margin: 5px;">SALA DE TROCA</h3>
+            <div style="display:flex; justify-content:space-between; width:100%; gap:5px;">
+                <div class="trade-side" style="flex:1; background:rgba(0,255,0,0.05); padding:5px; border-radius:10px; border:1px solid #333;">
+                    <div style="text-align:center; font-weight:bold; color:#2ecc71; font-size:0.8rem;">VOCÊ <span id="trade-my-lock">🔓</span></div>
+                    <div style="margin:5px 0;"><label style="font-size:0.7rem;">Gold:</label><input type="number" id="trade-my-gold" value="0" onchange="window.updateTradeGold(this.value)" style="width:60px; padding:5px; font-size:0.8rem;"></div>
+                    <div class="grid" id="trade-my-offer" style="min-height:80px; border:1px dashed #555;"></div>
+                    <button class="btn btn-green" onclick="window.toggleTradeLock()" style="font-size:0.7rem; padding: 8px;">CONFIRMAR</button>
+                </div>
+                <div class="trade-side" style="flex:1; background:rgba(255,0,0,0.05); padding:5px; border-radius:10px; border:1px solid #333;">
+                    <div style="text-align:center; font-weight:bold; color:#e74c3c; font-size:0.8rem;">OPONENTE <span id="trade-their-lock">🔓</span></div>
+                    <div style="margin:5px 0; color:gold; font-size:0.7rem;">Ouro: <span id="trade-their-gold">0</span></div>
+                    <div class="grid" id="trade-their-offer" style="min-height:80px; border:1px dashed #555;"></div>
+                    <div id="trade-status-msg" style="text-align:center; margin-top:10px; color:#aaa; font-size:0.7rem;">Aguardando...</div>
+                </div>
+            </div>
+            <div style="margin-top:10px; border-top:1px solid #444; padding-top:5px; flex:1; display:flex; flex-direction:column;">
+                <p style="font-size:0.8rem; margin: 5px;">Seus itens:</p>
+                <div class="scroll-area"><div class="grid" id="trade-inventory"></div></div>
+            </div>
+            <button class="btn" onclick="window.openMenu()" style="background:#444; margin-top:5px;">SAIR</button>
+        </div>
+    </div>
+
+    <div class="screen" id="screen-chat">
+        <div class="panel">
+            <h3 style="color:var(--neon-blue); font-size:1.2rem;">SOCIAL</h3>
+            <div style="display:flex; height:300px; width:100%;">
+                <div style="flex:2; display:flex; flex-direction:column;">
+                    <div id="chat-messages" style="flex:1;"></div>
+                    <div style="display:flex; gap:5px;"><input id="chat-input" placeholder="Digite..." style="font-size:0.9rem;"/><button class="btn" onclick="window.sendChat()" style="width:auto; padding: 0 15px;">➤</button></div>
+                </div>
+                <div style="flex:1; background:rgba(0,0,0,0.3); border-left:1px solid #444; margin-left:5px; padding:5px; overflow-y:auto;">
+                    <div style="font-size:0.6rem; color:#aaa; text-align:center;">ONLINE</div>
+                    <div id="online-users-list" style="font-size:0.7rem;"></div>
+                </div>
+            </div>
+            <button class="btn" onclick="window.toggleChat()" style="background:#444;">FECHAR</button>
+        </div>
+    </div>
+
+    <div class="screen" id="screen-booster">
+        <div class="panel">
+            <h2 style="color:gold; font-family:'Titan One'; text-shadow:0 0 20px gold; font-size: 1.5rem;">PACOTE ABERTO!</h2>
+            <div id="booster-display"></div>
+            <button class="btn" onclick="window.openMenu()">GUARDAR TUDO</button>
+        </div>
+    </div>
+
+    <div class="screen" id="screen-bet">
+        <div class="panel">
+            <h3>APOSTAS RANKED</h3>
+            <div id="search-timer" style="color:var(--neon-blue); display:none; margin:10px; font-weight:bold;">Procurando oponente...</div>
+            <p style="font-size:0.7rem; color:#aaa;">Selecione 1, 3 ou 5 cartas para apostar.</p>
+			<div class="filter-bar" style="margin-bottom:10px;">
+                <button class="filter-btn active" onclick="window.filterBet('all', this)">TODAS</button>
+                <button class="filter-btn" onclick="window.filterBet('duplicates', this)" style="border-color:#ff0055; color:#ff0055;">REPETIDAS</button>
+                <button class="filter-btn" onclick="window.filterBet('common', this)" style="border-color:#bdc3c7">COMUM</button>
+                <button class="filter-btn" onclick="window.filterBet('rare', this)" style="border-color:#0984e3">RARA</button>
+                <button class="filter-btn" onclick="window.filterBet('epic', this)" style="border-color:#9b59b6">EPICA</button>
+                <button class="filter-btn" onclick="window.filterBet('legend', this)" style="border-color:#f1c40f">LEND</button>
+            </div>
+            <div class="scroll-area"><div class="grid" id="bet-grid"></div></div>
+            <div style="display:flex; gap:10px;"><button class="btn btn-green" onclick="window.createMatch()">JOGAR RANKED</button><button class="btn" onclick="window.openMenu()" style="background:#444;">VOLTAR</button></div>
+        </div>
+    </div>
+
+    <div class="screen" id="screen-missions">
+        <div class="panel">
+            <h3 style="color:var(--gold); font-family:'Titan One'; font-size:1.5rem;">MISSÕES</h3>
+            <div class="scroll-area" id="missions-list"></div>
+            <button class="btn" onclick="window.openMenu()" style="background:#444;">VOLTAR</button>
+        </div>
+    </div>
+
+    <div class="screen" id="screen-history">
+        <div class="panel">
+            <h3 style="color:var(--neon-blue); font-family:'Titan One'; font-size:1.5rem;">DIÁRIO</h3>
+            <div class="scroll-area" id="history-list" style="text-align:left; font-size:0.8rem;"></div>
+            <button class="btn" onclick="window.openMenu()" style="background:#444;">VOLTAR</button>
+        </div>
+    </div>
+
+   <div class="screen" id="screen-market">
+  <div class="panel">
+    <h3>MERCADO GLOBAL</h3>
+
+    <div style="display:flex; gap:8px; width:100%; justify-content:center; margin-bottom:10px;">
+      <button class="btn btn-green" onclick="window.switchMarketTab('all')">🌐 MERCADO</button>
+      <button class="btn" onclick="window.switchMarketTab('mine')" style="background:#444;">📦 MEUS ITENS</button>
+    </div>
+
+    <div class="scroll-area">
+      <div class="grid" id="market-grid"></div>
+      <div class="grid" id="market-my-grid" style="display:none;"></div>
+    </div>
+
+    <button class="btn" onclick="window.openMenu()" style="background:#444;">VOLTAR</button>
+  </div>
+</div>
+
+  <div class="panel">
+    <h3>MERCADO GLOBAL</h3>
+
+    <!-- BOTÕES DO MERCADO -->
+    <div style="display:flex; gap:8px; width:100%; justify-content:center; margin-bottom:10px;">
+      <button class="btn btn-green" onclick="window.switchMarketTab('all')">🌐 MERCADO</button>
+      <button class="btn" onclick="window.switchMarketTab('mine')" style="background:#444;">📦 MEUS ITENS</button>
+    </div>
+
+    <!-- GRID DO MERCADO (ÚNICO) -->
+    <div class="scroll-area">
+      <div class="grid" id="market-grid"></div>
+
+      <!-- ✅ MEUS ITENS -->
+      <div class="grid" id="market-my-grid" style="display:none;"></div>
+    </div>
+
+    <button class="btn" onclick="window.openMenu()" style="background:#444;">VOLTAR</button>
+  </div>
+</div>
+
+
+<!-- GRID DO MERCADO -->
+<div class="scroll-area" style="flex:1;">
+  <div class="grid" id="market-grid"></div>
+
+  <!-- ✅ MEUS ITENS -->
+  <div class="grid" id="market-my-grid" style="display:none;"></div>
+</div>
+
+        </div>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="game.js"></script>
+    <script>
+       // --- CORREÇÃO DE CONFLITO: bgParticles em vez de particles ---
+       const bgCvs = document.getElementById('bg-canvas'); 
+       const bgCtx = bgCvs.getContext('2d', { alpha: true });
+       let bgW, bgH, bgParticles = [], mouse = { x: -500, y: -500 }, fxMode = 'NORMAL';
+       const PARTICLE_COUNT = 300, COLORS = ['#ffd700', '#00f3ff', '#bd00ff', '#ffffff'];
+
+       window.addEventListener('resize', initBgParticles); 
+       window.addEventListener('mousemove', e => { mouse.x = e.clientX; mouse.y = e.clientY; }, {passive:true});
+       window.addEventListener('mousedown', () => { if(window.sounds) window.sounds.click.play().catch(()=>{}); });
+       window.sporeGather = () => { fxMode = 'GATHER'; };
+       window.sporeExplode = () => { fxMode = 'EXPLODE'; bgParticles.forEach(p => { const a = Math.random()*6.28, f=15+Math.random()*15; p.vx=Math.cos(a)*f; p.vy=Math.sin(a)*f; }); setTimeout(() => fxMode = 'NORMAL', 1500); };
+
+       function initBgParticles() {
+           bgW = window.innerWidth; bgH = window.innerHeight; bgCvs.width = bgW; bgCvs.height = bgH;
+           bgParticles = [];
+           for(let i=0; i<PARTICLE_COUNT; i++) bgParticles.push({ x: Math.random() * bgW, y: Math.random() * bgH, vx: (Math.random()-0.5)*0.5, vy: (Math.random()-0.5)*0.5, size: Math.random()*2.0, color: COLORS[Math.floor(Math.random()*COLORS.length)], alpha: Math.random(), fadeSpeed: 0.01+Math.random()*0.02 });
+       }
+       function animateBg() {
+           bgCtx.clearRect(0, 0, bgW, bgH); bgCtx.globalCompositeOperation = 'lighter';
+           bgParticles.forEach(p => {
+               if (fxMode === 'GATHER') { p.vx += (bgW/2 - p.x)*0.005; p.vy += (bgH/2 - p.y)*0.005; p.vx*=0.92; p.vy*=0.92; }
+               else if (fxMode === 'EXPLODE') { p.vx*=0.95; p.vy*=0.95; }
+               else { 
+                   const d = Math.hypot(mouse.x-p.x, mouse.y-p.y);
+                   if(d<120) { const f=(120-d)/120; p.vx-=(mouse.x-p.x)/d*f*0.2; p.vy-=(mouse.y-p.y)/d*f*0.2; }
+                   p.vx+=(Math.random()-0.5)*0.02; p.vy+=(Math.random()-0.5)*0.02;
+                   p.vx=Math.max(-1.5,Math.min(1.5,p.vx)); p.vy=Math.max(-1.5,Math.min(1.5,p.vy));
+               }
+               p.x+=p.vx; p.y+=p.vy;
+               if(p.x<0)p.x=bgW; if(p.x>bgW)p.x=0; if(p.y<0)p.y=bgH; if(p.y>bgH)p.y=0;
+               p.alpha+=p.fadeSpeed; if(p.alpha>1||p.alpha<0.1)p.fadeSpeed*=-1;
+               bgCtx.beginPath(); bgCtx.arc(p.x, p.y, p.size, 0, 6.28); bgCtx.fillStyle=p.color; bgCtx.globalAlpha=Math.max(0,Math.min(1,p.alpha)); bgCtx.fill();
+           });
+           requestAnimationFrame(animateBg);
+       }
+       initBgParticles(); animateBg();
+
+       window.sounds = { openPack: new Audio('https://assets.mixkit.co/active_storage/sfx/2019/2019-preview.mp3'), swap: new Audio('https://assets.mixkit.co/active_storage/sfx/2014/2014-preview.mp3'), click: new Audio('https://assets.mixkit.co/active_storage/sfx/2568/2568-preview.mp3'), win: new Audio('https://assets.mixkit.co/active_storage/sfx/2018/2018-preview.mp3') };
+       document.addEventListener("DOMContentLoaded", () => { const l=document.getElementById('intro-logo-container'); if(l) setTimeout(()=>l.classList.add('float-anim', 'active'), 1200); });
+    </script>
 </body>
 </html>
