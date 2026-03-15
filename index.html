@@ -17,57 +17,9 @@
         --gold: #f1c40f; --neon-green: #2ecc71;
     }
     body { margin: 0; overflow: hidden; background: radial-gradient(circle at center, #2b0055 0%, #090014 100%); font-family: 'Nunito', sans-serif; color: white; touch-action: none; user-select: none; -webkit-font-smoothing: antialiased; }
-    /* ===== FIX COLEÇÃO MOBILE: abas não são comidas pelo scroll ===== */
-
-/* 1) painel da coleção vira layout flex travado */
-#screen-collection .panel{
-  display:flex;
-  flex-direction:column;
-  height: 95svh;              /* mobile safe */
-  max-height: 95svh;
-}
-
-/* fallback pra browsers sem svh */
-@supports not (height: 1svh){
-  #screen-collection .panel{
-    height: 95vh;
-    max-height: 95vh;
-  }
-}
-
-/* 2) impede que a área scroll empurre os elementos do topo */
-#screen-collection .panel > *{
-  flex: 0 0 auto;
-}
-
-/* 3) scroll-area vira a única região que cresce e rola */
-#screen-collection .scroll-area{
-  flex: 1 1 auto;
-  min-height: 0;              /* CRÍTICO: permite scroll certo no flex */
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
-}
-
-/* 4) segurança extra: abas sempre ficam “presas” no topo */
-#screen-collection .binder-tabs{
-  flex: 0 0 auto;
-  position: sticky;
-  top: 0;
-  z-index: 5;
-  background: rgba(0,0,0,0.35);
-  backdrop-filter: blur(8px);
-}
-
+    
     #bg-canvas { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 0; pointer-events: none; mix-blend-mode: screen; }
     
-    /* ESTILOS DA COLEÇÃO */
-    .binder-slot.rarity-common { border-color: #bdc3c7; box-shadow: inset 0 0 5px rgba(0,0,0,0.5); }
-    .binder-slot.rarity-rare { border-color: #0984e3; box-shadow: 0 0 10px rgba(9, 132, 227, 0.4); }
-    .binder-slot.rarity-epic { border-color: #9b59b6; box-shadow: 0 0 15px rgba(155, 89, 182, 0.6); animation: pulseEpic 3s infinite; }
-    .binder-slot.rarity-legend { border-color: #f1c40f; box-shadow: 0 0 25px rgba(241, 196, 15, 0.8); animation: shineLegend 2s infinite linear; background: linear-gradient(135deg, rgba(255,215,0,0.1), rgba(0,0,0,0.5)); }
-    @keyframes pulseEpic { 0%{box-shadow: 0 0 15px #9b59b6;} 50%{box-shadow: 0 0 25px #bd00ff;} 100%{box-shadow: 0 0 15px #9b59b6;} }
-    @keyframes shineLegend { 0% { border-color: #f1c40f; box-shadow: 0 0 20px #f1c40f; } 50% { border-color: #fff; box-shadow: 0 0 40px #ffaa00; } 100% { border-color: #f1c40f; box-shadow: 0 0 20px #f1c40f; } }
-
     /* HUD E SCORE */
     #score-board { position: absolute; top: 15%; width: 100%; display: flex; justify-content: center; gap: 20px; pointer-events: none; z-index: 20; text-shadow: 0 4px 10px black; }
     .score-box { text-align: center; transition: transform 0.2s; }
@@ -89,7 +41,7 @@
 
     #market-ticker { position: absolute; top: 15px; left: 50%; transform: translateX(-50%); background: linear-gradient(90deg, transparent, rgba(0,0,0,0.8), transparent); padding: 5px 10px; width: 90%; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-family: 'Nunito'; font-weight: 900; font-size: 0.8rem; z-index: 100; pointer-events: none; }
 
-    /* TELAS GERAIS - AJUSTE MOBILE: max-height dinâmico */
+    /* TELAS GERAIS */
     .screen { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(5, 0, 15, 0.85); z-index: 2000; display: none; align-items: center; justify-content: center; pointer-events: auto; backdrop-filter: blur(12px); animation: fadeIn 0.3s ease-out; }
     .screen.active { display: flex; }
     @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
@@ -112,18 +64,40 @@
     input, select { width: 100%; padding: 12px; margin: 5px 0; border-radius: 10px; border: 2px solid rgba(255,255,255,0.2); background: rgba(0,0,0,0.4); color: white; text-align: center; font-family: 'Nunito'; font-size: 1rem; font-weight: bold; transition: 0.3s; }
     input:focus, select:focus { border-color: var(--neon-blue); outline: none; background: rgba(0,0,0,0.6); box-shadow: 0 0 15px rgba(0, 243, 255, 0.3); }
 
-    /* COLEÇÃO */
-    .binder-tabs { display: flex; width: 100%; margin-bottom: 10px; background: rgba(0,0,0,0.3); border-radius: 12px; padding: 4px; overflow-x: auto; }
+    /* --- COLEÇÃO PREMIUM --- */
+    #screen-collection .panel{ display:flex; flex-direction:column; height: 95svh; max-height: 95svh; }
+    @supports not (height: 1svh){ #screen-collection .panel{ height: 95vh; max-height: 95vh; } }
+    #screen-collection .panel > *{ flex: 0 0 auto; }
+    #screen-collection .scroll-area{ flex: 1 1 auto; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+    
+    .binder-tabs { display: flex; width: 100%; margin-bottom: 10px; background: rgba(0,0,0,0.3); border-radius: 12px; padding: 4px; overflow-x: auto; flex: 0 0 auto; position: sticky; top: 0; z-index: 5; backdrop-filter: blur(8px); }
     .binder-tab { flex: 1; padding: 8px; border: none; background: transparent; color: #888; font-weight: 800; cursor: pointer; border-radius: 8px; transition: 0.3s; font-size: 0.8rem; white-space: nowrap; }
     .binder-tab.active { color: white; background: rgba(255,255,255,0.1); text-shadow: 0 0 10px var(--neon-blue); }
     
-    #collection-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); gap: 8px; padding: 5px; }
+    .set-group { margin-top: 20px; margin-bottom: 15px; animation: fadeIn 0.4s ease-out; }
+    .set-header { background: linear-gradient(90deg, rgba(20,10,40,0.9), rgba(0, 206, 201, 0.1)); border-left: 4px solid var(--neon-blue); border-radius: 4px 8px 8px 4px; padding: 8px 15px; display: flex; flex-direction: column; margin-bottom: 10px; box-shadow: 0 4px 10px rgba(0,0,0,0.5); }
+    .set-title-row { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 5px; }
+    .set-name { font-family: 'Titan One'; font-size: 1.1rem; color: white; text-shadow: 0 2px 4px black; letter-spacing: 1px; }
+    .set-progress-text { font-size: 0.7rem; color: var(--gold); font-weight: 900; background: rgba(0,0,0,0.5); padding: 2px 6px; border-radius: 4px; }
+    .set-bar-bg { width: 100%; height: 6px; background: rgba(0,0,0,0.5); border-radius: 3px; overflow: hidden; border: 1px solid rgba(255,255,255,0.1); }
+    .set-bar-fill { height: 100%; background: linear-gradient(90deg, #0984e3, #00cec9); transition: width 1s cubic-bezier(0.19, 1, 0.22, 1); }
+    .set-bar-fill.complete { background: linear-gradient(90deg, #f1c40f, #ffaa00); box-shadow: 0 0 10px gold; }
+    
+    .set-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); gap: 8px; padding: 5px; }
+    
     .binder-slot { background: linear-gradient(135deg, rgba(255,255,255,0.05), rgba(255,255,255,0.01)); border-radius: 8px; padding: 5px; transition: transform 0.2s; cursor: pointer; border: 1px solid rgba(255,255,255,0.1); position: relative; }
     .binder-slot:hover { transform: scale(1.05); z-index: 10; border-color: var(--neon-blue); background: rgba(255,255,255,0.1); }
     .binder-card { width: 100%; aspect-ratio: 2.5/3.5; background-size: cover; background-position: center; border-radius: 4px; margin-bottom: 3px; box-shadow: 1px 1px 3px rgba(0,0,0,0.5); }
     .binder-info { font-size: 0.6rem; display: flex; justify-content: space-between; color: #ddd; font-weight: bold; }
     .b-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 65%; }
     .b-count { color: var(--magic-gold); text-shadow: 0 0 5px orange; }
+
+    .binder-slot.rarity-common { border-color: #bdc3c7; box-shadow: inset 0 0 5px rgba(0,0,0,0.5); }
+    .binder-slot.rarity-rare { border-color: #0984e3; box-shadow: 0 0 10px rgba(9, 132, 227, 0.4); }
+    .binder-slot.rarity-epic { border-color: #9b59b6; box-shadow: 0 0 15px rgba(155, 89, 182, 0.6); animation: pulseEpic 3s infinite; }
+    .binder-slot.rarity-legend { border-color: #f1c40f; box-shadow: 0 0 25px rgba(241, 196, 15, 0.8); animation: shineLegend 2s infinite linear; background: linear-gradient(135deg, rgba(255,215,0,0.1), rgba(0,0,0,0.5)); }
+    @keyframes pulseEpic { 0%{box-shadow: 0 0 15px #9b59b6;} 50%{box-shadow: 0 0 25px #bd00ff;} 100%{box-shadow: 0 0 15px #9b59b6;} }
+    @keyframes shineLegend { 0% { border-color: #f1c40f; box-shadow: 0 0 20px #f1c40f; } 50% { border-color: #fff; box-shadow: 0 0 40px #ffaa00; } 100% { border-color: #f1c40f; box-shadow: 0 0 20px #f1c40f; } }
 
     /* BANK */
     .greek-panel { background: radial-gradient(circle at center, #2c3e50 0%, #000000 100%); border: 4px double var(--magic-gold); box-shadow: 0 0 50px rgba(255, 215, 0, 0.2); }
@@ -137,139 +111,40 @@
     /* INSPECTOR */
     #card-inspector { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); z-index: 3000; display: none; flex-direction: column; align-items: center; justify-content: center; perspective: 1200px; transition: opacity 0.3s; padding: 20px; }
     #card-inspector.active { display: flex; }
-    /* Ajuste mobile do inspector */
     #inspector-img { width: 90vw; max-width: 300px; height: 45vh; background-size: contain; background-repeat: no-repeat; background-position: center; border-radius: 15px; box-shadow: 0 0 50px rgba(255,255,255,0.1); transition: transform 0.1s ease-out; transform-style: preserve-3d; margin-bottom: 15px; cursor: grab; }
     #inspector-img:active { cursor: grabbing; }
     #inspector-img.fullscreen { width: 95vw; height: 70vh; max-width: none; margin: 0; }
     #inspector-data { text-align: center; color: white; background: rgba(255,255,255,0.1); padding: 15px; border-radius: 20px; backdrop-filter: blur(15px); width: 95%; max-width: 400px; border: 1px solid rgba(255,255,255,0.2); }
-    .sleeve-row { display: flex; gap: 10px; overflow-x: auto; padding: 10px; width: 100%; justify-content: flex-start; }
-    .sleeve-item { min-width: 60px; height: 90px; border: 2px solid #555; cursor: pointer; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 0.6rem; color: #aaa; background: #222; transition: 0.2s; flex-shrink: 0; }
-    .sleeve-item:hover { transform: scale(1.05); }
 
     /* ICONS E BADGES */
     .btn-round { width: 45px; height: 45px; border-radius: 50%; border: 2px solid rgba(255,255,255,0.2); background: rgba(0,0,0,0.6); color: white; backdrop-filter: blur(5px); font-size: 1.2rem; box-shadow: 0 4px 10px rgba(0,0,0,0.5); cursor: pointer; display: flex; align-items: center; justify-content: center; transition: 0.2s; margin-bottom: 5px; }
     .btn-round:active { transform: scale(0.9); border-color: var(--magic-gold); background: rgba(255, 215, 0, 0.2); }
-    .counter-badge { position: absolute; top: -8px; right: -8px; background: #ff0055; color: white; border-radius: 50%; width: 20px; height: 20px; font-size: 0.7rem; display: flex; align-items: center; justify-content: center; border: 2px solid white; z-index: 5; font-weight: bold; box-shadow: 0 2px 5px black; }
+    .counter-badge { position: absolute; top: -10px; right: -10px; background: #e74c3c; color: white; border: 2px solid white; border-radius: 50%; width: 24px; height: 24px; font-size: 0.8rem; font-weight: bold; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 5px black; z-index: 5; }
     .float-controls { position: absolute; right: 10px; bottom: 200px; display: flex; flex-direction: column; gap: 10px; z-index: 100; }
     
-    #context-menu { position: absolute; display: none; flex-direction: column; background: rgba(30, 30, 40, 0.95); border: 1px solid var(--magic-gold); border-radius: 10px; z-index: 5000; padding: 5px; box-shadow: 0 5px 20px rgba(0,0,0,0.8); backdrop-filter: blur(5px); animation: fadeIn 0.1s; }
-    .ctx-item { padding: 10px 15px; cursor: pointer; color: white; border-bottom: 1px solid #444; font-size: 0.85rem; font-family: 'Nunito'; }
-    .ctx-item:hover { background: var(--neon-blue); color: #000; border-radius: 5px; }
+    #context-menu { position: fixed; display: none; flex-direction: column; background: rgba(30, 30, 40, 0.98); border: 1px solid var(--magic-gold); border-radius: 10px; z-index: 5000; padding: 5px; box-shadow: 0 5px 20px rgba(0,0,0,0.8); min-width: 150px; }
+    .ctx-item { padding: 12px 15px; cursor: pointer; color: white; border-bottom: 1px solid #444; font-size: 0.9rem; font-family: 'Nunito'; transition: 0.2s; }
+    .ctx-item:hover { background: var(--neon-blue); color: black; }
+    .ctx-item:last-child { border-bottom: none; }
 
-   /* MARKET (GRID 3 COLUNAS + SCROLL LIMITADO) */
+    .ping-anim { position: absolute; width: 20px; height: 20px; border-radius: 50%; border: 3px solid white; transform: translate(-50%, -50%); pointer-events: none; animation: pingRipple 1s ease-out forwards; box-shadow: 0 0 10px rgba(255,255,255,0.5); z-index: 2000; }
+    @keyframes pingRipple { 0% { width: 0px; height: 0px; opacity: 1; border-width: 5px; } 100% { width: 100px; height: 100px; opacity: 0; border-width: 0px; } }
 
-/* garante que a área do mercado role sem quebrar o painel */
-#screen-market .panel{
-  display:flex;
-  flex-direction:column;
-  height: 95svh;
-  max-height: 95svh;
-}
-@supports not (height: 1svh){
-  #screen-market .panel{
-    height: 95vh;
-    max-height: 95vh;
-  }
-}
+    /* MARKET */
+    #screen-market .panel{ display:flex; flex-direction:column; height: 95svh; max-height: 95svh; }
+    @supports not (height: 1svh){ #screen-market .panel{ height: 95vh; max-height: 95vh; } }
+    #screen-market .scroll-area{ flex: 1 1 auto; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+    #market-grid, #market-my-grid { display:grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; padding: 6px; align-content: start; }
+    
+    .market-card { background: rgba(255,255,255,0.05); border: 1px solid #444; border-radius: 8px; display:flex; flex-direction:column; align-items:center; padding: 5px; overflow:hidden; }
+    .market-card .binder-card { width: 100%; aspect-ratio: 2.5/3.5; background-size: cover; background-position: center; border-radius: 6px; margin-bottom: 4px; }
+    .m-info { text-align:center; margin-top: 4px; width:100%; font-size: 0.65rem; }
 
-#screen-market .scroll-area{
-  flex: 1 1 auto;
-  min-height: 0;                 /* CRÍTICO */
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
-}
-
-/* ✅ AQUI é o que faltava: container vira grid de 3 colunas */
-#market-grid{
-  display:grid !important;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px;
-  padding: 6px;
-  align-content: start;
-}
-
-#market-my-grid{
-  display:grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px;
-  padding: 6px;
-  align-content: start;
-}
-
-/* --- GRID DE APOSTAS E SELEÇÃO (COMPACTO) --- */
-#bet-grid {
-    display: grid;
-    /* Cartas menores (60px) para caber 4-5 por linha no mobile */
-    grid-template-columns: repeat(auto-fill, minmax(65px, 1fr)); 
-    gap: 8px; 
-    padding: 10px;
-    width: 100%;
-}
-
-.bet-card {
-    aspect-ratio: 2.5/3.5;
-    background-color: #1a1a1a;
-    background-size: cover;
-    background-position: center;
-    border-radius: 6px;
-    border: 2px solid #444;
-    position: relative;
-    cursor: pointer;
-    transition: transform 0.1s, border-color 0.1s;
-    box-shadow: 2px 2px 5px rgba(0,0,0,0.5);
-}
-
-/* Efeito ao Selecionar */
-.bet-card.selected {
-    border-color: #00cec9; /* Azul Neon */
-    box-shadow: 0 0 10px #00cec9;
-    transform: scale(0.9);
-    filter: brightness(1.2);
-}
-
-/* Indicador de check visual */
-.bet-card.selected::after {
-    content: '✔';
-    position: absolute;
-    inset: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: rgba(0, 206, 201, 0.4);
-    color: white;
-    font-size: 1.5rem;
-    text-shadow: 0 2px 4px black;
-    font-weight: bold;
-}
-/* cards */
-.market-card{
-  background: rgba(255,255,255,0.05);
-  border: 1px solid #444;
-  border-radius: 8px;
-  display:flex;
-  flex-direction:column;
-  align-items:center;
-  padding: 5px;
-  overflow:hidden;
-}
-
-/* se você renderiza a carta com .binder-card dentro do market, isso padroniza */
-.market-card .binder-card{
-  width: 100%;
-  aspect-ratio: 2.5/3.5;
-  background-size: cover;
-  background-position: center;
-  border-radius: 6px;
-  margin-bottom: 4px;
-}
-
-.m-info{
-  text-align:center;
-  margin-top: 4px;
-  width:100%;
-  font-size: 0.65rem;
-}
-
+    /* RANKED E APOSTAS */
+    #bet-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(65px, 1fr)); gap: 8px; padding: 10px; width: 100%; }
+    .bet-card { aspect-ratio: 2.5/3.5; background-color: #1a1a1a; background-size: cover; background-position: center; border-radius: 6px; border: 2px solid #444; position: relative; cursor: pointer; transition: transform 0.1s, border-color 0.1s; box-shadow: 2px 2px 5px rgba(0,0,0,0.5); }
+    .bet-card.selected { border-color: #00cec9; box-shadow: 0 0 10px #00cec9; transform: scale(0.9); filter: brightness(1.2); }
+    .bet-card.selected::after { content: '✔'; position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(0, 206, 201, 0.4); color: white; font-size: 1.5rem; text-shadow: 0 2px 4px black; font-weight: bold; }
 
     /* BOOSTER */
     #booster-display { display:flex; justify-content:center; gap:10px; height:200px; align-items:center; perspective:1000px; flex-wrap: wrap; }
@@ -296,67 +171,7 @@
     #toast-area { position:absolute; top:70px; width:100%; display:flex; flex-direction:column; align-items:center; pointer-events:none; z-index:3000; padding: 0 20px; }
     .toast { background: rgba(10, 5, 20, 0.95); padding: 10px 20px; border-radius: 50px; margin-bottom: 10px; border: 2px solid var(--magic-gold); color: var(--magic-gold); font-weight: bold; box-shadow: 0 5px 15px rgba(0,0,0,0.5); animation: pop 0.4s; font-size: 0.9rem; text-align: center; }
     @keyframes pop { from{transform:scale(0) translateY(20px);} to{transform:scale(1) translateY(0);} }
-/* CONTEXT MENU */
-    #context-menu { 
-        position: fixed; 
-        display: none; 
-        flex-direction: column; 
-        background: rgba(30, 30, 40, 0.98); 
-        border: 1px solid var(--magic-gold); 
-        border-radius: 10px; 
-        z-index: 5000; 
-        padding: 5px; 
-        box-shadow: 0 5px 20px rgba(0,0,0,0.8); 
-        min-width: 150px;
-    }
-    .ctx-item { 
-        padding: 12px 15px; 
-        cursor: pointer; 
-        color: white; 
-        border-bottom: 1px solid #444; 
-        font-size: 0.9rem; 
-        font-family: 'Nunito'; 
-        transition: 0.2s;
-    }
-    .ctx-item:hover { background: var(--neon-blue); color: black; }
-    .ctx-item:last-child { border-bottom: none; }
 
-    /* ANIMAÇÃO DE PING */
-    .ping-anim {
-        position: absolute;
-        width: 20px; height: 20px;
-        border-radius: 50%;
-        border: 3px solid white;
-        transform: translate(-50%, -50%);
-        pointer-events: none;
-        animation: pingRipple 1s ease-out forwards;
-        box-shadow: 0 0 10px rgba(255,255,255,0.5);
-        z-index: 2000;
-    }
-    @keyframes pingRipple {
-        0% { width: 0px; height: 0px; opacity: 1; border-width: 5px; }
-        100% { width: 100px; height: 100px; opacity: 0; border-width: 0px; }
-    }
-
-    /* BADGES DE CONTADORES NO CARD */
-    .counter-badge {
-        position: absolute;
-        top: -10px;
-        right: -10px;
-        background: #e74c3c;
-        color: white;
-        border: 2px solid white;
-        border-radius: 50%;
-        width: 24px;
-        height: 24px;
-        font-size: 0.8rem;
-        font-weight: bold;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        box-shadow: 0 2px 5px black;
-        z-index: 5;
-    }
     /* MENU 3D RESPONSIVO */
     .city-viewport { position: relative; width: 100%; height: 50vh; min-height: 300px; max-height: 550px; margin-top: 10px; border-radius: 20px; overflow: hidden; background: radial-gradient(circle at 50% 120%, #4a0072 0%, #1a0b2e 50%, #000 100%); box-shadow: inset 0 0 50px rgba(0,0,0,0.9), 0 0 0 2px rgba(255, 255, 255, 0.1); perspective: 1200px; }
     .city-platform { position: absolute; top: 50%; left: 50%; width: 120%; height: 120%; transform: translate(-50%, -50%) rotateX(40deg) scale(0.9); background: linear-gradient(rgba(0, 243, 255, 0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(0, 243, 255, 0.05) 1px, transparent 1px); background-size: 40px 40px; border-radius: 50%; box-shadow: 0 0 100px rgba(189, 0, 255, 0.2); pointer-events: none; }
@@ -391,64 +206,6 @@
     .b-pack-seal { position: absolute; bottom: 10px; width: 110%; background: var(--magic-gold); color: black; font-family: 'Titan One'; font-size: 0.5rem; text-align: center; transform: rotate(-5deg); box-shadow: 0 2px 5px black; }
     @keyframes packFloat { 0%, 100% { transform: translateY(0) rotate(0deg); filter: brightness(1); } 50% { transform: translateY(-10px) rotate(2deg); filter: brightness(1.3); } }
 
-    /* ESTILOS DA COLEÇÃO */
-    .collection-header {
-        background: rgba(0, 0, 0, 0.6);
-        border: 1px solid rgba(255, 255, 255, 0.1);
-        border-radius: 12px;
-        padding: 10px;
-        margin-bottom: 10px;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-    }
-
-    .set-stats {
-        text-align: left;
-        font-size: 0.7rem;
-        color: #aaa;
-    }
-
-    .set-stats b {
-        color: var(--gold);
-        font-size: 0.9rem;
-    }
-
-    /* Slot Vazio (Missing Card) */
-    .binder-slot.missing {
-        background: rgba(0, 0, 0, 0.3);
-        border: 2px dashed #444;
-        opacity: 0.7;
-        filter: grayscale(100%);
-        position: relative;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-    }
-
-    .binder-slot.missing .binder-card {
-        background: none !important;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-    }
-
-    .missing-number {
-        font-family: 'Titan One', cursive;
-        font-size: 1.5rem;
-        color: rgba(255, 255, 255, 0.1);
-        z-index: 0;
-    }
-
-    .missing-label {
-        position: absolute;
-        bottom: 5px;
-        font-size: 0.5rem;
-        color: #666;
-        text-transform: uppercase;
-    }
-
-    /* --- MEDIA QUERY MOBILE (AJUSTES FINAIS) --- */
     @media (max-width: 600px), (max-height: 700px) {
         .title-bafo { font-size: 3rem !important; }
         .b-card { width: 65px; height: 65px; }
@@ -466,7 +223,7 @@
 </style>
 </head>
 <body>
-   <audio id="audio-intro" src="intro.mp3" preload="auto"></audio>
+    <audio id="audio-intro" src="intro.mp3" preload="auto"></audio>
     <audio id="audio-bgm" src="bgm.mp3" loop preload="auto"></audio>
 
     <div id="volume-widget" style="position:fixed; top:15px; right:15px; z-index:9999; display:flex; flex-direction:column; align-items:flex-end;">
@@ -511,12 +268,6 @@
     <div id="card-inspector" onclick="if(event.target===this)window.closeInspector()">
         <div id="inspector-img" onclick="event.stopPropagation(); window.toggleInspectorFullscreen()"></div>
         <div id="inspector-data" onclick="event.stopPropagation()"></div>
-        <div class="sleeve-row" id="inspector-controls" onclick="event.stopPropagation()" style="display:none; background:rgba(0,0,0,0.8); border-radius:10px; margin-top:10px;">
-            <div class="sleeve-item" onclick="window.buySleeve('neon')" style="border-color:#00cec9">NEON<br/>500g</div>
-            <div class="sleeve-item" onclick="window.buySleeve('gold')" style="border-color:#f1c40f">GOLD<br/>1000g</div>
-            <div class="sleeve-item" onclick="window.buySleeve('void')" style="border-color:#6c5ce7">VOID<br/>2000g</div>
-            <div class="sleeve-item" onclick="window.buySleeve('red')" style="border-color:#e74c3c">RED<br/>300g</div>
-        </div>
     </div>
 
     <div id="ui-layer">
@@ -700,54 +451,28 @@
     </div>
 
     <div class="screen" id="screen-collection">
-  <div class="panel">
-    <div class="binder-tabs">
-      <button class="binder-tab active" id="tab-mtg" onclick="window.switchBinderTab('mtg')">MAGIC</button>
-      <button class="binder-tab" id="tab-pokemon" onclick="window.switchBinderTab('pokemon')">POKEMON</button>
-      <button class="binder-tab" id="tab-lorcana" onclick="window.switchBinderTab('lorcana')">LORCANA</button>
+        <div class="panel">
+            <div class="binder-tabs">
+                <button class="binder-tab active" id="tab-mtg" onclick="window.switchBinderTab('mtg')">MAGIC</button>
+                <button class="binder-tab" id="tab-pokemon" onclick="window.switchBinderTab('pokemon')">POKEMON</button>
+                <button class="binder-tab" id="tab-lorcana" onclick="window.switchBinderTab('lorcana')">LORCANA</button>
+            </div>
+
+            <div class="filter-bar">
+                <button class="filter-btn active" onclick="window.filterCollection('all', this)">TODAS</button>
+                <button class="filter-btn" onclick="window.filterCollection('common', this)" style="border-bottom: 2px solid #bdc3c7">COMUM</button>
+                <button class="filter-btn" onclick="window.filterCollection('rare', this)" style="border-bottom: 2px solid #0984e3">RARA</button>
+                <button class="filter-btn" onclick="window.filterCollection('epic', this)" style="border-bottom: 2px solid #9b59b6">EPIC</button>
+                <button class="filter-btn" onclick="window.filterCollection('legend', this)" style="border-bottom: 2px solid #f1c40f">LENDÁRIA</button>
+            </div>
+
+            <div class="scroll-area">
+                <div id="collection-grid"></div>
+            </div>
+
+            <button class="btn" onclick="window.openMenu()" style="background:#444;">VOLTAR</button>
+        </div>
     </div>
-
-    <!-- ✅ NOVO: Navegação de EDIÇÕES (SETS) -->
-    <div id="set-nav" style="display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:10px;">
-      <button class="btn-round" style="margin:0;" onclick="window.prevSet()">⬅️</button>
-      <div style="flex:1; text-align:center;">
-        <div id="set-title" style="font-family:'Titan One'; font-size:0.9rem; color:var(--gold); text-shadow:0 0 10px rgba(255,215,0,0.3);">SET</div>
-        <div id="set-subtitle" style="font-size:0.6rem; color:#aaa; font-weight:900;">...</div>
-      </div>
-      <button class="btn-round" style="margin:0;" onclick="window.nextSet()">➡️</button>
-    </div>
-
-    <div id="collection-mastery" style="background:rgba(0,0,0,0.4); padding:10px; border-radius:10px; margin-bottom:10px;">
-      <div style="display:flex; justify-content:space-between; font-size:0.7rem; color:#aaa; margin-bottom:5px;">
-        <span id="set-name-display">GERAL</span>
-        <span id="set-progress-text">0/0</span>
-      </div>
-      <div style="height:8px; background:#222; border-radius:5px; overflow:hidden;">
-        <div id="set-progress-bar" style="width:0%; height:100%; background:linear-gradient(90deg, #bd00ff, #00cec9);"></div>
-      </div>
-      <div style="font-size:0.6rem; text-align:center; margin-top:5px; color:gold;">Complete para ganhar Sleeves!</div>
-    </div>
-
-    <div style="display:flex; gap:5px; justify-content:center; flex-wrap:wrap; margin:10px 0;">
-      <input id="collection-search" placeholder="Buscar..." style="width:70%; max-width:320px; padding:8px;" oninput="window.setCollectionSearch(this.value)">
-    </div>
-
-    <div class="filter-bar">
-      <button class="filter-btn active" onclick="window.filterCollection('all', this)">TODAS</button>
-      <button class="filter-btn" onclick="window.filterCollection('common', this)" style="border-bottom: 2px solid #bdc3c7">COMUM</button>
-      <button class="filter-btn" onclick="window.filterCollection('rare', this)" style="border-bottom: 2px solid #0984e3">RARA</button>
-      <button class="filter-btn" onclick="window.filterCollection('epic', this)" style="border-bottom: 2px solid #9b59b6">EPIC</button>
-      <button class="filter-btn" onclick="window.filterCollection('legend', this)" style="border-bottom: 2px solid #f1c40f">LENDÁRIA</button>
-    </div>
-
-    <div class="scroll-area">
-      <div id="collection-grid"></div>
-    </div>
-
-    <button class="btn" onclick="window.openMenu()" style="background:#444;">VOLTAR</button>
-  </div>
-</div>
-
 
     <div class="screen" id="screen-booster-mix">
         <div class="panel">
@@ -826,7 +551,7 @@
             <h3>APOSTAS RANKED</h3>
             <div id="search-timer" style="color:var(--neon-blue); display:none; margin:10px; font-weight:bold;">Procurando oponente...</div>
             <p style="font-size:0.7rem; color:#aaa;">Selecione 1, 3 ou 5 cartas para apostar.</p>
-			<div class="filter-bar" style="margin-bottom:10px;">
+            <div class="filter-bar" style="margin-bottom:10px;">
                 <button class="filter-btn active" onclick="window.filterBet('all', this)">TODAS</button>
                 <button class="filter-btn" onclick="window.filterBet('duplicates', this)" style="border-color:#ff0055; color:#ff0055;">REPETIDAS</button>
                 <button class="filter-btn" onclick="window.filterBet('common', this)" style="border-color:#bdc3c7">COMUM</button>
@@ -855,61 +580,24 @@
         </div>
     </div>
 
-   <div class="screen" id="screen-market">
-  <div class="panel">
-    <h3>MERCADO GLOBAL</h3>
-
-    <div style="display:flex; gap:8px; width:100%; justify-content:center; margin-bottom:10px;">
-      <button class="btn btn-green" onclick="window.switchMarketTab('all')">🌐 MERCADO</button>
-      <button class="btn" onclick="window.switchMarketTab('mine')" style="background:#444;">📦 MEUS ITENS</button>
-    </div>
-
-    <div class="scroll-area">
-      <div class="grid" id="market-grid"></div>
-      <div class="grid" id="market-my-grid" style="display:none;"></div>
-    </div>
-
-    <button class="btn" onclick="window.openMenu()" style="background:#444;">VOLTAR</button>
-  </div>
-</div>
-
-  <div class="panel">
-    <h3>MERCADO GLOBAL</h3>
-
-    <!-- BOTÕES DO MERCADO -->
-    <div style="display:flex; gap:8px; width:100%; justify-content:center; margin-bottom:10px;">
-      <button class="btn btn-green" onclick="window.switchMarketTab('all')">🌐 MERCADO</button>
-      <button class="btn" onclick="window.switchMarketTab('mine')" style="background:#444;">📦 MEUS ITENS</button>
-    </div>
-
-    <!-- GRID DO MERCADO (ÚNICO) -->
-    <div class="scroll-area">
-      <div class="grid" id="market-grid"></div>
-
-      <!-- ✅ MEUS ITENS -->
-      <div class="grid" id="market-my-grid" style="display:none;"></div>
-    </div>
-
-    <button class="btn" onclick="window.openMenu()" style="background:#444;">VOLTAR</button>
-  </div>
-</div>
-
-
-<!-- GRID DO MERCADO -->
-<div class="scroll-area" style="flex:1;">
-  <div class="grid" id="market-grid"></div>
-
-  <!-- ✅ MEUS ITENS -->
-  <div class="grid" id="market-my-grid" style="display:none;"></div>
-</div>
-
+    <div class="screen" id="screen-market">
+        <div class="panel">
+            <h3>MERCADO GLOBAL</h3>
+            <div style="display:flex; gap:8px; width:100%; justify-content:center; margin-bottom:10px;">
+                <button class="btn btn-green" onclick="window.switchMarketTab('all')">🌐 MERCADO</button>
+                <button class="btn" onclick="window.switchMarketTab('mine')" style="background:#444;">📦 MEUS ITENS</button>
+            </div>
+            <div class="scroll-area">
+                <div id="market-grid"></div>
+                <div id="market-my-grid" style="display:none;"></div>
+            </div>
+            <button class="btn" onclick="window.openMenu()" style="background:#444;">VOLTAR</button>
         </div>
     </div>
 
     <script src="/socket.io/socket.io.js"></script>
     <script src="game.js"></script>
     <script>
-       // --- CORREÇÃO DE CONFLITO: bgParticles em vez de particles ---
        const bgCvs = document.getElementById('bg-canvas'); 
        const bgCtx = bgCvs.getContext('2d', { alpha: true });
        let bgW, bgH, bgParticles = [], mouse = { x: -500, y: -500 }, fxMode = 'NORMAL';

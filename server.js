@@ -255,64 +255,34 @@ function generateLore(name, rarity, source) {
 }
 
 // --- PADRONIZAÇÃO DE CARTAS COM SETS E PREÇO DINÂMICO ---
-function normalizeCard(card, realPrice = 0) {
-    const safeStr = (v) => v ? String(v).trim() : "";
-    let img = safeStr(card?.image || card?.image_uris?.normal);
+function normalizeCard(cardData, realPrice = 0) {
+    let img = cardData.image || "https://placehold.co/250x350/222/gold?text=???";
     
-    if (!img || img.length < 10) {
-        img = "https://placehold.co/250x350/222/gold?text=" + encodeURIComponent(safeStr(card?.name));
-    }
-    
-    const rarity = safeStr(card?.rarity) || "common";
-    const name = safeStr(card?.name) || "Carta Misteriosa";
-    const source = safeStr(card?.source) || "System";
-
-    // --- LÓGICA DE SETS DETERMINÍSTICA ---
-    let hash = 0;
-    for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
-    const positiveHash = Math.abs(hash);
-
-    const setInfo = SET_CONFIG[source] || SET_CONFIG['System'];
-    
-    // Define a edição baseada no hash
-    let editionIdx = positiveHash % 10; // 0-9
-    let editionName = setInfo.editions[setInfo.editions.length - 1]; // Default: Última
-    
-    if (editionIdx < 4) {
-        editionName = setInfo.editions[editionIdx]; // Cai em uma das 4 clássicas
-    }
-
-    // Número da carta na coleção (1 a 300 fixo pelo nome)
-    const cardNum = (positiveHash % 300) + 1;
-
     // --- CÁLCULO DE VALOR DE MERCADO ---
     let estimatedValue = Math.max(10, Math.ceil(realPrice * 100));
-    if (DATABASE.priceHistory && DATABASE.priceHistory[name]) {
-        const history = DATABASE.priceHistory[name];
-        if (history.length > 0) {
-            const avg = history.reduce((a, b) => a + b, 0) / history.length;
-            estimatedValue = Math.floor(avg);
-        }
+    if (DATABASE.priceHistory && DATABASE.priceHistory[cardData.name]) {
+        const history = DATABASE.priceHistory[cardData.name];
+        if (history.length > 0) estimatedValue = Math.floor(history.reduce((a, b) => a + b, 0) / history.length);
     }
     const minPrices = { 'common': 10, 'rare': 50, 'epic': 200, 'legend': 1000 };
-    estimatedValue = Math.max(estimatedValue, minPrices[rarity] || 10);
+    estimatedValue = Math.max(estimatedValue, minPrices[cardData.rarity] || 10);
 
     return {
         uid: uid(),
-        name: name,
+        name: cardData.name || "Carta Misteriosa",
         image: img,
-        rarity: rarity,
-        source: source,
-        lore: generateLore(name, rarity, source),
+        rarity: cardData.rarity || "common",
+        source: cardData.source || "System",
+        lore: generateLore(cardData.name, cardData.rarity, cardData.source),
         baseValue: estimatedValue,
         
-        // METADADOS DE COLEÇÃO
-        set_id: setInfo.code, 
-        set_name: editionName,
-        number: cardNum,      
-        total_in_set: 300,
+        // DADOS REAIS EXTRAÍDOS DA API
+        set_id: cardData.set_id || "SYS", 
+        set_name: cardData.set_name || "Edição Base",
+        number: cardData.number || "???",      
+        total_in_set: cardData.total_in_set || "???",
         
-        sleeve: null,
+        sleeve: null, 
         acquiredAt: Date.now()
     };
 }
@@ -466,16 +436,21 @@ async function _downloadCardRaw(source) {
     try {
         if (source === "mtg") {
             const c = await fetchJSON("https://api.scryfall.com/cards/random", 5000);
-            let img = c?.image_uris?.normal || c?.image_uris?.large || c?.card_faces?.[0]?.image_uris?.normal;
-            let price = parseFloat(c.prices?.usd || 0);
-            if(img) return normalizeCard({ name: c.name, image: img, rarity: mapRarity(c.rarity), source: "Magic" }, price);
+            let img = c?.image_uris?.normal || c?.card_faces?.[0]?.image_uris?.normal;
+            if(img) return normalizeCard({ 
+                name: c.name, image: img, rarity: mapRarity(c.rarity), source: "Magic",
+                set_id: c.set, set_name: c.set_name, number: c.collector_number, total_in_set: c.card_count || "???"
+            }, parseFloat(c.prices?.usd || 0));
         }
         else if (source === "lorcana") {
             const all = await getLorcanaAllCached();
             if (all?.length) {
                 const c = all[Math.floor(Math.random() * all.length)];
                 let img = c.Image || `https://placehold.co/250x350/333/00cec9?text=${encodeURIComponent(c.Name)}`;
-                return normalizeCard({ name: c.Name, image: img, rarity: mapRarity(c.Rarity), source: "Lorcana" }, 0);
+                return normalizeCard({ 
+                    name: c.Name, image: img, rarity: mapRarity(c.Rarity), source: "Lorcana",
+                    set_id: "LOR", set_name: c.Set_Name, number: c.Card_Num, total_in_set: 204
+                }, 0);
             }
         }
         else if (source === "pokemon") {
@@ -483,12 +458,15 @@ async function _downloadCardRaw(source) {
             if (all?.length) {
                 const c = all[Math.floor(Math.random() * all.length)];
                 let img = c.image ? `${c.image}/high.png` : "";
+                // TCGDex ID format is usually "setID-cardNumber" (e.g., swsh1-15)
+                let setId = c.id.split('-')[0].toUpperCase();
+                let number = c.localId || c.id.split('-')[1] || "???";
                 let rarity = c.rarity ? mapRarity(c.rarity) : (c.name.includes(" V") ? "epic" : "common");
-                let price = 0;
-                if(rarity !== 'common' && Math.random() > 0.5) { 
-                    try { const d = await fetchJSON(`https://api.tcgdex.net/v2/en/cards/${c.id}`, 2000); if(d.rarity) rarity = mapRarity(d.rarity); } catch(e){} 
-                }
-                return normalizeCard({ name: c.name, image: img, rarity: rarity, source: "Pokemon" }, price);
+                
+                return normalizeCard({ 
+                    name: c.name, image: img, rarity: rarity, source: "Pokemon",
+                    set_id: setId, set_name: "Pokémon: " + setId, number: number, total_in_set: "???"
+                }, 0);
             }
         }
     } catch (e) { return null; }
@@ -1012,7 +990,7 @@ else if (d.type === 'create_token') {
         io.to(t.id).emit("table_update", t);
     });
 
-    socket.on("create_match", async (uids) => {
+socket.on("create_match", async (uids) => {
         try {
             const uName = SOCKET_USER_MAP[socket.id];
             const u = DATABASE.users[uName];
@@ -1063,17 +1041,35 @@ else if (d.type === 'create_token') {
                     r.usernames.push(BOT_NAME);
                     r.pot.push(...botCards);
                     r.scores[BOT_NAME] = 0;
+                    
+                    // --- CARA OU COROA (50/50 EXATO) E INICIALIZAÇÃO SEGURA ---
                     r.started = true;
                     r.isBotMatch = true;
-                    r.pot.sort(() => Math.random() - 0.5);
-                    r.turnIndex = 0; r.turnId = uid(); r.lastTurnTime = Date.now();
+                    r.pot.sort(() => Math.random() - 0.5); // Embaralha as cartas da mesa
+
+                    // 50% de chance exata (0 = Jogador Humano, 1 = Bot)
+                    r.turnIndex = Math.random() < 0.5 ? 0 : 1; 
+                    r.currentTurn = r.players[r.turnIndex]; // Salva a vez no servidor para evitar bugs
+                    r.turnId = uid(); 
+                    r.lastTurnTime = Date.now();
 
                     saveDB();
+                    
+                    // Notifica quem venceu a moeda no centro da tela para dar "juice"
+                    const starterName = r.usernames[r.turnIndex];
+                    io.to(r.id).emit("notification", `🪙 Cara ou Coroa: ${starterName} ganhou a vez!`);
+
                     io.to(r.id).emit("game_start", {
-                        roomId: r.id, pot: r.pot, currentTurn: r.players[0],
-                        turnId: r.turnId, usernames: r.usernames
+                        roomId: r.id, 
+                        pot: r.pot, 
+                        currentTurn: r.currentTurn, 
+                        turnId: r.turnId, 
+                        usernames: r.usernames
                     });
-                } catch (err) { delete MATCHES[rid]; socket.emit("notification", "Erro ao iniciar duelo."); }
+                } catch (err) { 
+                    delete MATCHES[rid]; 
+                    socket.emit("notification", "Erro ao iniciar duelo."); 
+                }
             }, 3000);
         } catch (err) { socket.emit("notification", "Erro interno."); }
     });
@@ -1212,11 +1208,13 @@ else if (d.type === 'create_token') {
     socket.on("turn_end_request", d => {
         const r = MATCHES[d.roomId];
         if(r) {
-            r.turnIndex = (r.turnIndex+1)%2; r.turnId = uid(); r.lastTurnTime = Date.now();
-            io.to(r.id).emit("new_turn", { nextTurn: r.players[r.turnIndex], turnId: r.turnId });
+            r.turnIndex = (r.turnIndex + 1) % 2; // Alterna 0 para 1, ou 1 para 0
+            r.currentTurn = r.players[r.turnIndex]; // <- ISSO AQUI DESTRAVA O JOGO
+            r.turnId = uid(); 
+            r.lastTurnTime = Date.now();
+            io.to(r.id).emit("new_turn", { nextTurn: r.currentTurn, turnId: r.turnId });
         }
     });
-
     socket.on("market_sell", d => {
         const u = DATABASE.users[SOCKET_USER_MAP[socket.id]];
         if (!u) return;

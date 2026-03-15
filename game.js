@@ -198,6 +198,13 @@ socket.on("elo_update", (d) => {
 });
 
 socket.on('notification', m => notify(m));
+// --- CORREÇÃO DO CHAT SOCIAL ---
+socket.on("chat_message", m => {
+    const el = document.getElementById('chat-messages');
+    if(!el) return;
+    el.innerHTML += `<div style="margin-bottom:5px"><b style="color:${m.user === 'LumiaBot' ? '#00cec9' : '#f1c40f'}">[${m.user}]</b> ${m.text}</div>`;
+    el.scrollTop = el.scrollHeight; // Rola pro fim automaticamente
+});
 
 // --- BAFO GAMEPLAY SOCKETS ---
 socket.on('waiting_opponent', () => {
@@ -253,7 +260,11 @@ socket.on("new_turn", d => {
     setTimeout(() => { if(window.checkBotMove) window.checkBotMove(); }, 500);
 });
 
+// --- CORREÇÃO DO TURNO (PASSA MESMO SE NÃO VIRAR NADA) ---
 socket.on('action_blow', d => {
+    // AQUI ESTÁ A CORREÇÃO: Avisa o jogo que o jogador/bot BATEU (mesmo que erre)
+    if(currentRoom) currentRoom._turnHadAction = true; 
+    
     const r = 280 * (0.8 + d.pressure * 0.5); 
     physicsCards.forEach(c => {
         if (c.dead || !(c instanceof PhysCard)) return; 
@@ -267,7 +278,9 @@ socket.on('action_blow', d => {
         }
     });
     for (let i = 0; i < 20; i++) particles.push(new Particle(d.x, d.y));
+    
     if(turnCheckTimer) clearTimeout(turnCheckTimer);
+    // Checa se o turno deve acabar em 600ms
     turnCheckTimer = setTimeout(checkTurnEnd, 600);
 });
 
@@ -755,67 +768,76 @@ window.renderCollection = function() {
     const g = document.getElementById('collection-grid');
     if(!g || !myUser) return;
     g.innerHTML = '';
-    
-    // 1. Identifica a Coleção Atual
-    const currentTab = window.currentBinderTab || 'mtg';
-    const setInfo = SET_INFOS[currentTab] || { name: 'Desconhecido', total: 100 };
-    const setCode = currentTab === 'mtg' ? 'MTG' : (currentTab === 'pokemon' ? 'PKM' : 'LOR');
-    
-    // 2. Filtra minhas cartas desta coleção
-    const myCardsInSet = myUser.collection.filter(c => c.set_id === setCode);
-    
-    // 3. Mapeia quais números eu tenho
-    const ownedMap = {};
-    myCardsInSet.forEach(c => {
-        if (!ownedMap[c.number]) ownedMap[c.number] = [];
-        ownedMap[c.number].push(c);
-    });
 
-    // 4. Calcula Estatísticas Reais
-    const uniqueCount = Object.keys(ownedMap).length;
-    const totalCards = setInfo.total;
-    const pct = Math.floor((uniqueCount / totalCards) * 100);
+    const sourceMap = { 'mtg': 'Magic', 'pokemon': 'Pokemon', 'lorcana': 'Lorcana' };
+    const currentSource = sourceMap[window.currentBinderTab || 'mtg'];
 
-    // 5. Atualiza o Header Bonito
-    const headerHtml = `
-        <div style="flex:1;">
-            <div style="color:${setInfo.color}; font-family:'Titan One'; font-size:1.2rem;">${setInfo.name.toUpperCase()}</div>
-            <div style="font-size:0.75rem; color:#888;">Edição: ${setInfo.release}</div>
-        </div>
-        <div style="text-align:right;">
-            <div style="font-size:1.5rem; font-weight:bold; color:white;">${uniqueCount} <span style="font-size:0.8rem; color:#666;">/ ${totalCards}</span></div>
-            <div style="font-size:0.7rem; color:${pct === 100 ? '#2ecc71' : 'orange'};">${pct}% COMPLETO</div>
-        </div>
-    `;
-    
-    // Injeta o Header (crie uma div #collection-header no HTML se não existir, ou usamos o mastery existente)
-    let headerEl = document.getElementById('collection-mastery');
-    if(headerEl) {
-        headerEl.innerHTML = headerHtml;
-        headerEl.style.background = `linear-gradient(90deg, rgba(0,0,0,0.8), rgba(${parseInt(setInfo.color.slice(1,3),16)}, ${parseInt(setInfo.color.slice(3,5),16)}, ${parseInt(setInfo.color.slice(5,7),16)}, 0.1))`;
+    // Filtra as cartas do Universo atual
+    const myCards = myUser.collection.filter(c => c.source === currentSource);
+
+    if(myCards.length === 0) {
+        g.innerHTML = `<div style="grid-column: 1/-1; text-align:center; padding:30px; color:#777; font-family:'Cinzel';">Nenhuma relíquia desta dimensão encontrada. Abra mais pacotes!</div>`;
+        return;
     }
 
-    // 6. RENDERIZA O GRID (1 até TOTAL)
-    // Limitamos a renderização visual para não travar se for 1000 cartas de uma vez (Paginação simples visual)
-    // Mostramos todas, mas simplificadas
-    
-    for (let i = 1; i <= totalCards; i++) {
-        // Se houver filtro de raridade ativo e a carta não tiver raridade (slot vazio), 
-        // decidimos se mostramos ou não. Para álbum completo, geralmente mostramos tudo.
+    // 1. Agrupa as cartas pelas Edições (Sets) Reais
+    const sets = {};
+    myCards.forEach(c => {
+        const sName = c.set_name || 'Edição Base';
+        if(!sets[sName]) sets[sName] = { cards: [], uniqueMap: {} };
+        sets[sName].cards.push(c);
         
-        const stack = ownedMap[i];
+        // Agrupa duplicatas da mesma carta
+        if(!sets[sName].uniqueMap[c.name]) sets[sName].uniqueMap[c.name] = [];
+        sets[sName].uniqueMap[c.name].push(c);
+    });
+
+    // 2. Renderiza cada Edição como uma sessão do Fichário
+    Object.keys(sets).sort().forEach(setName => {
+        const setData = sets[setName];
+        const uniqueStacks = Object.values(setData.uniqueMap);
         
-        if (stack && stack.length > 0) {
-            // --- EU TENHO A CARTA ---
+        // Tenta pegar o total de cartas do set (vem do server), fallback pra '???'
+        const totalInSet = uniqueStacks[0][0].total_in_set || '???'; 
+        let pct = 0;
+        let isComplete = false;
+
+        if (totalInSet !== '???' && !isNaN(totalInSet)) {
+            pct = Math.floor((uniqueStacks.length / totalInSet) * 100);
+            if (pct >= 100) { pct = 100; isComplete = true; }
+        }
+
+        // --- CRIA O CABEÇALHO DA EDIÇÃO (DIVISÓRIA) ---
+        const setDiv = document.createElement('div');
+        setDiv.className = 'set-group';
+        setDiv.innerHTML = `
+            <div class="set-header">
+                <div class="set-title-row">
+                    <span class="set-name">${setName.toUpperCase()}</span>
+                    <span class="set-progress-text">${uniqueStacks.length} / ${totalInSet}</span>
+                </div>
+                <div class="set-bar-bg">
+                    <div class="set-bar-fill ${isComplete ? 'complete' : ''}" style="width: ${totalInSet === '???' ? 100 : pct}%;"></div>
+                </div>
+            </div>
+            <div class="set-grid"></div>
+        `;
+        g.appendChild(setDiv);
+
+        const setGrid = setDiv.querySelector('.set-grid');
+
+        // --- RENDERIZA AS CARTAS DENTRO DA EDIÇÃO ---
+        // Tenta ordenar pelo número da carta
+        uniqueStacks.sort((a,b) => parseInt(a[0].number || 0) - parseInt(b[0].number || 0)).forEach(stack => {
             const item = stack[0];
             
-            // Aplica filtro de raridade se necessário
-            if (window.currentRarityFilter !== 'all' && item.rarity !== window.currentRarityFilter) continue;
+            // Filtro de raridade visual
+            if (window.currentRarityFilter !== 'all' && item.rarity !== window.currentRarityFilter) return;
 
             const d = document.createElement('div');
             d.className = `binder-slot rarity-${item.rarity}`;
-            
-            // Imagem Segura
+
+            // Proxy de imagem seguro
             let bgUrl = item.image;
             if(bgUrl && bgUrl.startsWith('http') && !bgUrl.includes('weserv')) {
                  bgUrl = `https://images.weserv.nl/?url=${encodeURIComponent(bgUrl)}&w=200&output=jpg`;
@@ -824,33 +846,17 @@ window.renderCollection = function() {
             d.innerHTML = `
                 <div class="binder-card" style="background-image:url('${bgUrl}')">
                     <div style="position:absolute; top:2px; left:2px; font-size:0.6rem; text-shadow:1px 1px 0 #000; color:${RARITY_COLORS[item.rarity]}">${TIERS[item.rarity]}</div>
-                    <div style="position:absolute; bottom:2px; right:2px; font-size:0.6rem; background:black; padding:1px 4px; border-radius:4px;">#${String(i).padStart(3,'0')}</div>
+                    <div style="position:absolute; bottom:2px; right:2px; font-size:0.6rem; background:rgba(0,0,0,0.8); padding:1px 4px; border-radius:4px; border:1px solid rgba(255,255,255,0.2);">#${item.number || '?'}</div>
                 </div>
                 <div class="binder-info">
                     <span class="b-name">${item.name}</span>
-                    <span class="b-count">x${stack.length}</span>
+                    <span class="b-count" style="${stack.length > 1 ? '' : 'color:#555; text-shadow:none;'}">x${stack.length}</span>
                 </div>`;
+            
             d.onclick = () => window.inspectCard(item.image, item.name, item.rarity, item.uid, item);
-            g.appendChild(d);
-
-        } else {
-            // --- CARTA FALTANTE (GHOST SLOT) ---
-            // Se o filtro de raridade estiver ativo, escondemos os vazios pois não sabemos a raridade do que falta
-            if (window.currentRarityFilter !== 'all') continue;
-
-            const d = document.createElement('div');
-            d.className = `binder-slot missing`;
-            d.innerHTML = `
-                <div class="binder-card">
-                    <span class="missing-number">${i}</span>
-                </div>
-                <div class="missing-label">FALTANDO</div>
-            `;
-            // Clicar no vazio pode dizer onde conseguir
-            d.onclick = () => notify(`Carta #${i} ainda não descoberta! Abra boosters de ${setInfo.name}.`);
-            g.appendChild(d);
-        }
-    }
+            setGrid.appendChild(d);
+        });
+    });
 };
 window.switchBinderTab = function(t) { window.currentBinderTab = t; document.querySelectorAll('.binder-tab').forEach(b => b.classList.remove('active')); document.getElementById('tab-' + t).classList.add('active'); window.renderCollection(); };
 window.filterCollection = function(rarity, btn) { window.currentRarityFilter = rarity; document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active')); btn.classList.add('active'); window.renderCollection(); };
@@ -1440,36 +1446,103 @@ function openDeckBuilder(d) {
     renderBuilderUI();
 }
 
+// --- DECKBUILDER PREMIUM (COM SEPARAÇÃO DE TCG) ---
+window.builderTcgFilter = 'Magic';
+
+window.setBuilderTcg = function(tcg) { 
+    window.builderTcgFilter = tcg; 
+    renderBuilderUI(); 
+};
+
+
+// --- DECKBUILDER PREMIUM (COM SEPARAÇÃO DE TCG E CARTAS VISÍVEIS) ---
+window.builderTcgFilter = 'Magic';
+
+window.setBuilderTcg = function(tcg) { 
+    window.builderTcgFilter = tcg; 
+    renderBuilderUI(); 
+};
+
+function openDeckBuilder(d) {
+    document.querySelectorAll('.active').forEach(e => e.classList.remove('active'));
+    document.getElementById('screen-deckbuilder').classList.add('active');
+    
+    // Garante clone profundo
+    activeDeck = d ? JSON.parse(JSON.stringify(d)) : { id: null, main: [], format: 'standard', name: 'Novo Deck' };
+    
+    if(d) {
+        document.getElementById('deck-name-input').value = d.name;
+        document.getElementById('deck-format-input').value = d.format || 'standard';
+    }
+    
+    // Reseta os grids para garantir que o menu superior renderize
+    const colGrid = document.getElementById('builder-collection');
+    if (colGrid) colGrid.parentElement.innerHTML = `
+        <div style="font-size:0.7rem; color:#777; padding:5px; text-align:center;">SUA COLEÇÃO</div>
+        <div id="builder-tcg-tabs" style="display:flex; justify-content:space-around; margin-bottom:5px; background:rgba(0,0,0,0.5); padding:5px; border-radius:5px; font-weight:bold; font-size:0.8rem;">
+            <span onclick="window.setBuilderTcg('Magic')" style="cursor:pointer; transition:0.2s;" id="tab-build-Magic">MAGIC</span>
+            <span onclick="window.setBuilderTcg('Pokemon')" style="cursor:pointer; transition:0.2s;" id="tab-build-Pokemon">POKÉMON</span>
+            <span onclick="window.setBuilderTcg('Lorcana')" style="cursor:pointer; transition:0.2s;" id="tab-build-Lorcana">LORCANA</span>
+        </div>
+        <div class="grid" id="builder-collection" style="padding:5px; display:grid; grid-template-columns:repeat(auto-fill, minmax(60px, 1fr)); gap:5px; max-height:300px; overflow-y:auto; align-content: start;"></div>
+    `;
+
+    const deckGrid = document.getElementById('builder-deck');
+    if(deckGrid) {
+        deckGrid.style.display = 'grid';
+        deckGrid.style.gridTemplateColumns = 'repeat(auto-fill, minmax(60px, 1fr))';
+        deckGrid.style.gap = '5px';
+    }
+
+    renderBuilderUI();
+}
+
 function renderBuilderUI() {
     if (!myUser || !myUser.collection) return;
-
     document.getElementById('deck-count-main').innerText = activeDeck.main.length;
-    const colGrid = document.getElementById('builder-collection'); colGrid.innerHTML = '';
-    const deckGrid = document.getElementById('builder-deck'); deckGrid.innerHTML = '';
-
-    // 1. Agrupa cartas da coleção por nome para visualização limpa
-    const uniqueMap = new Map();
-    myUser.collection.forEach(item => {
-        if (!uniqueMap.has(item.name)) uniqueMap.set(item.name, item);
+    
+    // Atualiza a cor das abas ativas
+    ['Magic', 'Pokemon', 'Lorcana'].forEach(t => {
+        const el = document.getElementById('tab-build-' + t);
+        if(el) el.style.color = (window.builderTcgFilter === t) ? '#00cec9' : '#888';
     });
-    const uniqueCards = Array.from(uniqueMap.values());
 
-    // Renderiza Coleção Disponível
-    uniqueCards.forEach(c => {
-        const d = document.createElement('div'); 
-        d.className = 'mini-card'; 
-        d.style.backgroundImage = `url('${c.image}')`;
-        // Adiciona ao deck (busca um UID válido na coleção do usuário que ainda não esteja no deck, se possível)
-        d.onclick = () => { 
-            // Encontra uma cópia dessa carta na coleção que a gente possa usar
-            const cardInstance = myUser.collection.find(x => x.name === c.name && !activeDeck.main.includes(x.uid));
-            // Se não tiver instância livre (já usou todas), usa a primeira mesmo (o server valida depois ou permite proxies em casual)
-            const uidToAdd = cardInstance ? cardInstance.uid : c.uid; 
+    const newColGrid = document.getElementById('builder-collection');
+    const deckGrid = document.getElementById('builder-deck');
+    if (!newColGrid || !deckGrid) return;
+    
+    newColGrid.innerHTML = '';
+    deckGrid.innerHTML = '';
+
+    // Filtra pelo TCG
+    const currentTcg = window.builderTcgFilter || 'Magic';
+    const availableCards = myUser.collection.filter(c => c.source === currentTcg);
+    
+    // Agrupa iguais
+    const uniqueMap = new Map();
+    availableCards.forEach(item => { if (!uniqueMap.has(item.name)) uniqueMap.set(item.name, item); });
+    
+    // Renderiza a Coleção (Só exibe as que sobraram)
+    Array.from(uniqueMap.values()).forEach(c => {
+        const count = availableCards.filter(x => x.name === c.name).length;
+        const used = activeDeck.main.filter(uid => {
+            const card = myUser.collection.find(x => x.uid === uid);
+            return card && card.name === c.name;
+        }).length;
+        
+        if (count - used > 0) {
+            const d = document.createElement('div'); 
+            d.style.width = '100%'; d.style.aspectRatio = '2.5/3.5'; d.style.backgroundSize = 'cover'; 
+            d.style.borderRadius = '4px'; d.style.cursor = 'pointer'; d.style.border = '1px solid #555'; 
+            d.style.position = 'relative'; d.style.backgroundImage = `url('${c.image}')`;
+            d.innerHTML = `<span style="position:absolute; bottom:0; right:0; background:#000; color:white; font-size:0.6rem; padding:2px 4px; border-radius:4px;">x${count - used}</span>`;
             
-            activeDeck.main.push(uidToAdd); 
-            renderBuilderUI(); 
-        }; 
-        colGrid.appendChild(d);
+            d.onclick = () => { 
+                const cardInstance = availableCards.find(x => x.name === c.name && !activeDeck.main.includes(x.uid));
+                if(cardInstance) { activeDeck.main.push(cardInstance.uid); renderBuilderUI(); }
+            }; 
+            newColGrid.appendChild(d);
+        }
     });
 
     // Renderiza Deck Atual
@@ -1477,30 +1550,13 @@ function renderBuilderUI() {
         const c = myUser.collection.find(x => x.uid === uid);
         if (c) { 
             const d = document.createElement('div'); 
-            d.className = 'mini-card'; 
+            d.style.width = '100%'; d.style.aspectRatio = '2.5/3.5'; d.style.backgroundSize = 'cover'; 
+            d.style.borderRadius = '4px'; d.style.cursor = 'pointer'; d.style.border = '2px solid #00cec9'; 
             d.style.backgroundImage = `url('${c.image}')`; 
-            d.onclick = () => { 
-                activeDeck.main.splice(idx, 1); 
-                renderBuilderUI(); 
-            }; 
+            
+            d.onclick = () => { activeDeck.main.splice(idx, 1); renderBuilderUI(); }; 
             deckGrid.appendChild(d); 
-        } else {
-            // Remove UIDs fantasmas se a carta foi vendida
-            activeDeck.main.splice(idx, 1);
         }
-    });
-}
-function renderBuilderUI() {
-    document.getElementById('deck-count-main').innerText = activeDeck.main.length;
-    const colGrid = document.getElementById('builder-collection'); colGrid.innerHTML = '';
-    const deckGrid = document.getElementById('builder-deck'); deckGrid.innerHTML = '';
-    const unique = [...new Map(myUser.collection.map(item => [item.name, item])).values()];
-    unique.forEach(c => {
-        const d = document.createElement('div'); d.className = 'mini-card'; d.style.backgroundImage = `url('${c.image}')`; d.onclick = () => { activeDeck.main.push(c.uid); renderBuilderUI(); }; colGrid.appendChild(d);
-    });
-    activeDeck.main.forEach((uid, idx) => {
-        const c = myUser.collection.find(x => x.uid === uid);
-        if(c) { const d = document.createElement('div'); d.className = 'mini-card'; d.style.backgroundImage = `url('${c.image}')`; d.onclick = () => { activeDeck.main.splice(idx, 1); renderBuilderUI(); }; deckGrid.appendChild(d); }
     });
 }
 window.saveDeck = () => { activeDeck.name = document.getElementById('deck-name-input').value; activeDeck.format = document.getElementById('deck-format-input').value; socket.emit('save_deck', activeDeck); };
